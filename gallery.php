@@ -15,7 +15,7 @@ $db = new PDO('sqlite:' . $dbPath);
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $stmt = $db->prepare('
-  SELECT local_key, file_name, mime_type, kind, drive_file_id, thumb_path, display_path, created_at
+  SELECT local_key, file_name, mime_type, kind, object_key, thumb_object_key, created_at
   FROM uploads
   ORDER BY datetime(created_at) DESC
   LIMIT :limit OFFSET :offset
@@ -26,22 +26,20 @@ $stmt->execute();
 
 $files = [];
 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-  $isImage = $row['kind'] === 'image';
-  $files[] = [
-    'id' => $row['local_key'],
-    'name' => $row['file_name'],
-    'mimeType' => $row['mime_type'],
-    'kind' => $row['kind'],
-    'createdTime' => $row['created_at'],
-    'driveFileId' => $row['drive_file_id'],
-    'src' => $isImage
-      ? 'media.php?local=display&id=' . rawurlencode($row['local_key'])
-      : 'media.php?drive=1&id=' . rawurlencode($row['drive_file_id']),
-    'thumbSrc' => $isImage
-      ? 'media.php?local=thumb&id=' . rawurlencode($row['local_key'])
-      : null,
-  ];
-}
+    $files[] = [
+      'id' => $row['local_key'],
+      'name' => $row['file_name'],
+      'mimeType' => $row['mime_type'],
+      'kind' => $row['kind'],
+      'createdTime' => $row['created_at'],
+      'objectKey' => $row['object_key'],
+      'displayObjectKey' => 'uploads/display/' . $row['local_key'] . '.jpg',
+      'thumbObjectKey' => $row['thumb_object_key'] ?? null,
+      'src' => 'media.php?id=' . rawurlencode($row['local_key']) . '&variant=full',
+      'displaySrc' => 'media.php?id=' . rawurlencode($row['local_key']) . '&variant=display',
+      'thumbSrc' => 'media.php?id=' . rawurlencode($row['local_key']) . '&variant=thumb',
+    ];
+  }
 
 $countStmt = $db->query('SELECT COUNT(*) AS count FROM uploads');
 $count = (int) ($countStmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);

@@ -216,7 +216,7 @@
           <figure class="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-[28px] bg-[#0f0b08] shadow-[0_20px_90px_rgba(0,0,0,0.35)]">
             ${file.kind === 'video'
         ? `<video src="${file.src}" class="h-full min-h-0 w-full flex-1 bg-black object-contain" controls playsinline autoplay preload="metadata"></video>`
-        : `<img src="${file.src}" alt="${file.name.replaceAll('"', '&quot;')}" class="h-full min-h-0 w-full flex-1 object-contain bg-black" loading="eager" decoding="async" fetchpriority="high">`
+        : `<img src="${file.displaySrc || file.src}" alt="${file.name.replaceAll('"', '&quot;')}" class="h-full min-h-0 w-full flex-1 object-contain bg-black" loading="eager" decoding="async" fetchpriority="high">`
       }
           </figure>
         </div>

@@ -11,7 +11,8 @@ $client = new Google\Client();
 $client->setClientId($clientId);
 $client->setClientSecret($clientSecret);
 $client->setRedirectUri($redirectUri);
-$client->addScope(Google\Service\Drive::DRIVE_FILE);
+$client->addScope('https://www.googleapis.com/auth/photoslibrary.appendonly');
+$client->addScope('https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata');
 $client->setAccessType('offline');
 $client->setPrompt('consent');
 

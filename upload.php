@@ -1,11 +1,12 @@
 <?php
 require_once 'vendor/autoload.php';
+use Aws\S3\S3Client;
 
-function generateImageThumbnail(string $sourcePath, string $destinationPath): void
+function generateImageThumbnail(string $sourcePath): ?string
 {
   $info = @getimagesize($sourcePath);
   if (!$info || !isset($info[2])) {
-    return;
+    return null;
   }
 
   $source = match ($info[2]) {
@@ -16,17 +17,17 @@ function generateImageThumbnail(string $sourcePath, string $destinationPath): vo
   };
 
   if (!$source) {
-    return;
+    return null;
   }
 
   $width = imagesx($source);
   $height = imagesy($source);
   if ($width <= 0 || $height <= 0) {
     imagedestroy($source);
-    return;
+    return null;
   }
 
-  $maxSize = 400;
+  $maxSize = 300;
   $scale = min($maxSize / $width, $maxSize / $height, 1);
   $targetWidth = max(1, (int) round($width * $scale));
   $targetHeight = max(1, (int) round($height * $scale));
@@ -44,21 +45,37 @@ function generateImageThumbnail(string $sourcePath, string $destinationPath): vo
 
   imagecopyresampled($thumb, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
 
-  if (!is_dir(dirname($destinationPath))) {
-    mkdir(dirname($destinationPath), 0777, true);
-  }
-
-  imagejpeg($thumb, $destinationPath, 72);
-
+  ob_start();
+  imagejpeg($thumb, null, 72);
+  $jpeg = ob_get_clean();
   imagedestroy($thumb);
   imagedestroy($source);
+  return $jpeg === false ? null : $jpeg;
 }
 
-function resizeImageForUpload(string $sourcePath, string $destinationPath, int $maxSize = 1200): bool
+function detectExtension(string $fileName, string $fileMime): string
+{
+  $pathInfo = pathinfo($fileName);
+  $ext = strtolower($pathInfo['extension'] ?? '');
+  if ($ext !== '') {
+    return preg_replace('/[^A-Za-z0-9]+/', '', $ext) ?: 'bin';
+  }
+
+  return match (true) {
+    str_starts_with($fileMime, 'image/jpeg') => 'jpg',
+    str_starts_with($fileMime, 'image/png') => 'png',
+    str_starts_with($fileMime, 'image/webp') => 'webp',
+    str_starts_with($fileMime, 'video/mp4') => 'mp4',
+    str_starts_with($fileMime, 'video/quicktime') => 'mov',
+    default => 'bin',
+  };
+}
+
+function resizeImageForUpload(string $sourcePath, int $maxSize = 1600): ?string
 {
   $info = @getimagesize($sourcePath);
   if (!$info || !isset($info[2])) {
-    return false;
+    return null;
   }
 
   $source = match ($info[2]) {
@@ -69,14 +86,14 @@ function resizeImageForUpload(string $sourcePath, string $destinationPath, int $
   };
 
   if (!$source) {
-    return false;
+    return null;
   }
 
   $width = imagesx($source);
   $height = imagesy($source);
   if ($width <= 0 || $height <= 0) {
     imagedestroy($source);
-    return false;
+    return null;
   }
 
   $scale = min($maxSize / $width, $maxSize / $height, 1);
@@ -84,8 +101,11 @@ function resizeImageForUpload(string $sourcePath, string $destinationPath, int $
   $targetHeight = max(1, (int) round($height * $scale));
 
   if ($targetWidth === $width && $targetHeight === $height) {
+    ob_start();
+    imagejpeg($source, null, 90);
+    $jpeg = ob_get_clean();
     imagedestroy($source);
-    return false;
+    return $jpeg === false ? null : $jpeg;
   }
 
   $resized = imagecreatetruecolor($targetWidth, $targetHeight);
@@ -102,58 +122,13 @@ function resizeImageForUpload(string $sourcePath, string $destinationPath, int $
 
   imagecopyresampled($resized, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
 
-  $saved = match ($info[2]) {
-    IMAGETYPE_JPEG => imagejpeg($resized, $destinationPath, 90),
-    IMAGETYPE_PNG => imagepng($resized, $destinationPath, 6),
-    IMAGETYPE_WEBP => function_exists('imagewebp') ? imagewebp($resized, $destinationPath, 85) : false,
-    default => false,
-  };
-
+  ob_start();
+  imagejpeg($resized, null, 90);
+  $jpeg = ob_get_clean();
   imagedestroy($resized);
   imagedestroy($source);
 
-  return (bool) $saved;
-}
-
-function uploadFileToDrive(
-  Google\Service\Drive $service,
-  Google\Client $client,
-  Google\Service\Drive\DriveFile $fileMetadata,
-  string $filePath,
-  string $fileMime,
-  int $chunkSizeBytes = 1048576
-): string {
-  $client->setDefer(TRUE);
-
-  $request = $service->files->create($fileMetadata, [
-    'fields' => 'id',
-    'supportsAllDrives' => TRUE,
-  ]);
-
-  $media = new Google\Http\MediaFileUpload(
-    $client,
-    $request,
-    $fileMime,
-    NULL,
-    TRUE,
-    $chunkSizeBytes
-  );
-
-  $media->setFileSize(filesize($filePath));
-
-  $status = FALSE;
-  $handle = fopen($filePath, "rb");
-  if (!$handle) {
-    throw new Exception("Could not open file for reading: " . $filePath);
-  }
-
-  while (!$status && !feof($handle)) {
-    $chunk = fread($handle, $chunkSizeBytes);
-    $status = $media->nextChunk($chunk);
-  }
-  fclose($handle);
-
-  return $status->id ?? '';
+  return $jpeg === false ? null : $jpeg;
 }
 
 function getDb(): PDO
@@ -161,45 +136,87 @@ function getDb(): PDO
   $dbPath = __DIR__ . '/media.sqlite';
   $pdo = new PDO('sqlite:' . $dbPath);
   $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-  $pdo->exec('
-    CREATE TABLE IF NOT EXISTS uploads (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      local_key TEXT NOT NULL UNIQUE,
-      file_name TEXT NOT NULL,
-      mime_type TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      drive_file_id TEXT NOT NULL,
-      thumb_path TEXT,
-      display_path TEXT,
-      created_at TEXT NOT NULL
-    )
-  ');
+
+  $tableExists = (bool) $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='uploads'")->fetchColumn();
+  if ($tableExists) {
+    $columns = [];
+    foreach ($pdo->query('PRAGMA table_info(uploads)') as $column) {
+      $columns[$column['name']] = $column;
+    }
+
+    $legacyLayout = isset($columns['drive_file_id']) || !isset($columns['object_key']);
+    if ($legacyLayout) {
+      $pdo->exec('ALTER TABLE uploads RENAME TO uploads_legacy');
+      $pdo->exec('
+        CREATE TABLE uploads (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          local_key TEXT NOT NULL UNIQUE,
+          file_name TEXT NOT NULL,
+          mime_type TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          object_key TEXT NOT NULL,
+          thumb_object_key TEXT,
+          created_at TEXT NOT NULL
+        )
+      ');
+    }
+  } else {
+    $pdo->exec('
+      CREATE TABLE uploads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        local_key TEXT NOT NULL UNIQUE,
+        file_name TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        object_key TEXT NOT NULL,
+        thumb_object_key TEXT,
+        created_at TEXT NOT NULL
+      )
+    ');
+  }
+
   return $pdo;
 }
 
-// 1. Load Credentials from Environment (DDEV .env or Caddyfile)
-$folderId = getenv('GOOGLE_DRIVE_FOLDER_ID') ?: '1Iqbwk8q1eU3Pd7seL7lHffQpeNZVe9IT';
-$originalFolderId = getenv('GOOGLE_DRIVE_ORIGINALS_FOLDER_ID');
-$clientId = getenv('GOOGLE_CLIENT_ID');
-$clientSecret = getenv('GOOGLE_CLIENT_SECRET');
-$refreshToken = getenv('GOOGLE_REFRESH_TOKEN');
+function getS3Client(): S3Client
+{
+  $region = getenv('HETZNER_S3_REGION') ?: 'us-east-1';
+  $endpoint = getenv('HETZNER_S3_ENDPOINT');
+  if ($endpoint === false || $endpoint === '') {
+    header('HTTP/1.1 500 Internal Server Error');
+    exit('Missing HETZNER_S3_ENDPOINT');
+  }
+  if (!preg_match('#^https?://#i', $endpoint)) {
+    $endpoint = 'https://' . $endpoint;
+  }
 
-if ($originalFolderId === false || $originalFolderId === '') {
-  header('HTTP/1.1 500 Internal Server Error');
-  exit('Missing GOOGLE_DRIVE_ORIGINALS_FOLDER_ID');
+  return new S3Client([
+    'version' => 'latest',
+    'region' => $region,
+    'endpoint' => $endpoint,
+    'use_path_style_endpoint' => true,
+    'credentials' => [
+      'key' => getenv('HETZNER_S3_ACCESS_KEY_ID'),
+      'secret' => getenv('HETZNER_S3_SECRET_ACCESS_KEY'),
+    ],
+  ]);
+}
+
+function getBucketName(): string
+{
+  $bucket = getenv('HETZNER_S3_BUCKET');
+  if ($bucket === false || $bucket === '') {
+    header('HTTP/1.1 500 Internal Server Error');
+    exit('Missing HETZNER_S3_BUCKET');
+  }
+  return $bucket;
 }
 
 // Path for chunk assembly
 $tempDir = __DIR__ . '/tmp/';
 
-// 2. Setup OAuth Client (Acting as your personal account)
-$client = new Google\Client();
-$client->setClientId($clientId);
-$client->setClientSecret($clientSecret);
-$client->refreshToken($refreshToken);
-$client->addScope(Google\Service\Drive::DRIVE_FILE);
-
-$service = new Google\Service\Drive($client);
+$s3 = getS3Client();
+$bucket = getBucketName();
 
 // Check if this is a chunked request from FilePond
 $patchId = $_SERVER['HTTP_UPLOAD_NAME'] ?? NULL;
@@ -269,51 +286,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   try {
-    $fileMetadata = new Google\Service\Drive\DriveFile([
-      'name' => $fileName,
-      'parents' => [$originalFolderId],
-    ]);
-
-    $driveFileId = uploadFileToDrive($service, $client, $fileMetadata, $filePath, $fileMime);
-
     $db = getDb();
     $localKey = sha1($fileName . '|' . ($filePath ?: '') . '|' . microtime(true));
     $kind = str_starts_with($fileMime, 'video/') ? 'video' : 'image';
-    $thumbPath = null;
-    $displayPath = null;
+    $extension = detectExtension($fileName, $fileMime);
+    $objectKey = 'uploads/originals/' . $localKey . '.' . $extension;
+    $thumbObjectKey = null;
+    $displayObjectKey = null;
+
+    $s3->putObject([
+      'Bucket' => $bucket,
+      'Key' => $objectKey,
+      'SourceFile' => $filePath,
+      'ContentType' => $fileMime,
+      'ACL' => 'private',
+    ]);
 
     if ($kind === 'image') {
-      $displayDir = __DIR__ . '/display';
-      $thumbDir = __DIR__ . '/thumbs';
-      if (!is_dir($displayDir)) {
-        mkdir($displayDir, 0777, true);
-      }
-      if (!is_dir($thumbDir)) {
-        mkdir($thumbDir, 0777, true);
+      $displayBody = resizeImageForUpload($filePath, 1200);
+      if ($displayBody !== null) {
+        $displayObjectKey = 'uploads/display/' . $localKey . '.jpg';
+        $s3->putObject([
+          'Bucket' => $bucket,
+          'Key' => $displayObjectKey,
+          'Body' => $displayBody,
+          'ContentType' => 'image/jpeg',
+          'ACL' => 'private',
+        ]);
       }
 
-      $localBaseName = $localKey;
-      $thumbPath = $thumbDir . '/' . $localBaseName . '.jpg';
-      $displayPath = $displayDir . '/' . $localBaseName . '.jpg';
-
-      generateImageThumbnail($filePath, $thumbPath);
-      resizeImageForUpload($filePath, $displayPath, 1200);
+      $thumbBody = generateImageThumbnail($filePath);
+      if ($thumbBody !== null) {
+        $thumbObjectKey = 'uploads/thumbs/' . $localKey . '.jpg';
+        $s3->putObject([
+          'Bucket' => $bucket,
+          'Key' => $thumbObjectKey,
+          'Body' => $thumbBody,
+          'ContentType' => 'image/jpeg',
+          'ACL' => 'private',
+        ]);
+      }
     }
 
     $stmt = $db->prepare('
       INSERT OR REPLACE INTO uploads
-        (local_key, file_name, mime_type, kind, drive_file_id, thumb_path, display_path, created_at)
+        (local_key, file_name, mime_type, kind, object_key, thumb_object_key, created_at)
       VALUES
-        (:local_key, :file_name, :mime_type, :kind, :drive_file_id, :thumb_path, :display_path, :created_at)
+        (:local_key, :file_name, :mime_type, :kind, :object_key, :thumb_object_key, :created_at)
     ');
     $stmt->execute([
       ':local_key' => $localKey,
       ':file_name' => $fileName,
       ':mime_type' => $fileMime,
       ':kind' => $kind,
-      ':drive_file_id' => $driveFileId,
-      ':thumb_path' => $thumbPath,
-      ':display_path' => $displayPath,
+      ':object_key' => $objectKey,
+      ':thumb_object_key' => $thumbObjectKey,
       ':created_at' => gmdate('c'),
     ]);
 
@@ -321,12 +348,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($isChunked && file_exists($filePath)) {
       unlink($filePath);
     }
-    header('Content-Type: text/plain');
-    echo 'success';
+    header('Content-Type: application/json');
+    echo json_encode([
+      'success' => true,
+      'objectKey' => $objectKey,
+      'displayObjectKey' => $displayObjectKey,
+      'thumbObjectKey' => $thumbObjectKey,
+    ]);
 
   } catch (Exception $e) {
     header('HTTP/1.1 500 Internal Server Error');
-    echo "Google Drive Error: " . $e->getMessage();
+    echo "Hetzner Object Storage Error: " . $e->getMessage();
   }
   exit;
 }
