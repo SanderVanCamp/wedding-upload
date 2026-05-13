@@ -201,6 +201,8 @@
       applyViewerZoom();
     };
 
+    const isViewerActive = () => !viewer.classList.contains('hidden');
+
     const tryOpenSharedPhoto = () => {
       if (sharedPhotoResolved || !pendingSharedPhotoId) {
         return false;
@@ -398,6 +400,7 @@
       document.body.style.inset = '0';
       document.body.style.width = '100%';
       document.documentElement.style.overscrollBehavior = 'none';
+      document.documentElement.style.touchAction = 'none';
       document.body.classList.add('overscroll-none');
       syncSharedPhotoState(galleryFiles[viewerOpenIndex]?.id || '');
       pendingSharedPhotoId = '';
@@ -411,6 +414,7 @@
       document.body.style.inset = '';
       document.body.style.width = '';
       document.documentElement.style.overscrollBehavior = '';
+      document.documentElement.style.touchAction = '';
       document.body.classList.remove('overscroll-none');
       syncSharedPhotoState('');
     };
@@ -595,6 +599,20 @@
       const nextScale = viewerZoomScale + (event.deltaY < 0 ? 0.15 : -0.15);
       updateViewerZoom(nextScale);
     }, { passive: false });
+    document.addEventListener('touchmove', (event) => {
+      if (!isViewerActive()) {
+        return;
+      }
+
+      event.preventDefault();
+    }, { passive: false, capture: true });
+    document.addEventListener('wheel', (event) => {
+      if (!isViewerActive()) {
+        return;
+      }
+
+      event.preventDefault();
+    }, { passive: false, capture: true });
     document.addEventListener('keydown', (event) => {
       if (viewer.classList.contains('hidden')) {
         return;
