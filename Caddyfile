@@ -1,0 +1,23 @@
+{
+	# Disable the admin API unless you need it.
+	admin off
+}
+
+:80 {
+	root * /var/www/html
+	encode zstd gzip
+
+	@phpFiles path *.php
+	php_fastcgi unix//run/php/php8.4-fpm.sock
+
+	file_server
+
+	header {
+		Cache-Control "public, max-age=60"
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

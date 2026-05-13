@@ -52,6 +52,42 @@ function generateResizedJpeg(string $sourcePath, int $maxSize, int $quality): ?s
   return $jpeg === false ? null : $jpeg;
 }
 
+function generateResizedJpegFromImage($source, int $sourceType, int $maxSize, int $quality): ?string
+{
+  if (!$source) {
+    return null;
+  }
+
+  $width = imagesx($source);
+  $height = imagesy($source);
+  if ($width <= 0 || $height <= 0) {
+    return null;
+  }
+
+  $scale = min($maxSize / $width, $maxSize / $height, 1);
+  $targetWidth = max(1, (int) round($width * $scale));
+  $targetHeight = max(1, (int) round($height * $scale));
+
+  $thumb = imagecreatetruecolor($targetWidth, $targetHeight);
+  $white = imagecolorallocate($thumb, 255, 255, 255);
+  imagefill($thumb, 0, 0, $white);
+
+  if ($sourceType === IMAGETYPE_PNG || $sourceType === IMAGETYPE_WEBP) {
+    imagealphablending($thumb, false);
+    imagesavealpha($thumb, true);
+    $transparent = imagecolorallocatealpha($thumb, 0, 0, 0, 127);
+    imagefill($thumb, 0, 0, $transparent);
+  }
+
+  imagecopyresampled($thumb, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+
+  ob_start();
+  imagejpeg($thumb, null, $quality);
+  $jpeg = ob_get_clean();
+  imagedestroy($thumb);
+  return $jpeg === false ? null : $jpeg;
+}
+
 function generateImageThumbnail(string $sourcePath): ?string
 {
   $jpeg = generateResizedJpeg($sourcePath, 300, 72);
@@ -70,6 +106,30 @@ function generateTinyPreviewDataUri(string $sourcePath): ?string
   }
 
   return 'data:image/jpeg;base64,' . base64_encode($jpeg);
+}
+
+function decodeImageSource(string $sourcePath)
+{
+  $info = @getimagesize($sourcePath);
+  if (!$info || !isset($info[2])) {
+  return [null, null];
+}
+
+function cleanupImageResource($image): void
+{
+  if ($image) {
+    imagedestroy($image);
+  }
+}
+
+  $source = match ($info[2]) {
+    IMAGETYPE_JPEG => @imagecreatefromjpeg($sourcePath),
+    IMAGETYPE_PNG => @imagecreatefrompng($sourcePath),
+    IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($sourcePath) : false,
+    default => false,
+  };
+
+  return [$source ?: null, $info[2]];
 }
 
 function detectExtension(string $fileName, string $fileMime): string
@@ -301,8 +361,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ]);
 
     if ($kind === 'image') {
-      $previewDataUri = generateTinyPreviewDataUri($filePath);
-      $displayBody = resizeImageForUpload($filePath, 1200);
+      [$sourceImage, $sourceType] = decodeImageSource($filePath);
+      $previewJpeg = $sourceImage ? generateResizedJpegFromImage($sourceImage, $sourceType, 24, 35) : null;
+      $previewDataUri = $previewJpeg !== null ? ('data:image/jpeg;base64,' . base64_encode($previewJpeg)) : null;
+      $displayBody = $sourceImage ? generateResizedJpegFromImage($sourceImage, $sourceType, 1200, 90) : null;
       if ($displayBody !== null) {
         $displayObjectKey = 'uploads/display/' . $localKey . '.jpg';
         $s3->putObject([
@@ -314,20 +376,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'ACL' => 'private',
         ]);
 
-        $thumbSourcePath = tempnam(sys_get_temp_dir(), 'wdu-thumb-');
-        if ($thumbSourcePath === false) {
-          $thumbBody = null;
-        } else {
-          file_put_contents($thumbSourcePath, $displayBody);
-          $thumbBody = generateImageThumbnail($thumbSourcePath);
-          @unlink($thumbSourcePath);
-        }
-
+        $thumbBody = $sourceImage ? generateResizedJpegFromImage($sourceImage, $sourceType, 300, 72) : null;
         if ($thumbBody === null) {
           $thumbBody = $displayBody;
         }
+        cleanupImageResource($sourceImage);
       } else {
-        $thumbBody = generateImageThumbnail($filePath);
+        $thumbBody = $sourceImage ? generateResizedJpegFromImage($sourceImage, $sourceType, 300, 72) : null;
+        cleanupImageResource($sourceImage);
       }
 
       if ($thumbBody !== null) {

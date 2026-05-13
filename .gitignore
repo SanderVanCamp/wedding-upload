@@ -3,6 +3,8 @@ vendor
 dist
 .git
 
+media.sqlite
+
 .ddev/.env
 
 .idea
