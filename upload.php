@@ -54,7 +54,12 @@ function generateResizedJpeg(string $sourcePath, int $maxSize, int $quality): ?s
 
 function generateImageThumbnail(string $sourcePath): ?string
 {
-  return generateResizedJpeg($sourcePath, 300, 72);
+  $jpeg = generateResizedJpeg($sourcePath, 300, 72);
+  if ($jpeg === null) {
+    return null;
+  }
+
+  return $jpeg;
 }
 
 function generateTinyPreviewDataUri(string $sourcePath): ?string
@@ -339,9 +344,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'CacheControl' => 'public, max-age=31536000, immutable',
           'ACL' => 'private',
         ]);
+
+        $thumbBody = generateImageThumbnail($filePath);
+        if ($thumbBody === null) {
+          $thumbBody = $displayBody;
+        }
+      } else {
+        $thumbBody = generateImageThumbnail($filePath);
       }
 
-      $thumbBody = generateImageThumbnail($filePath);
       if ($thumbBody !== null) {
         $thumbObjectKey = 'uploads/thumbs/' . $localKey . '.jpg';
         $s3->putObject([

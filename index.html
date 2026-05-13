@@ -209,7 +209,7 @@
           url.searchParams.set('pageToken', galleryNextPageToken);
         }
 
-        const response = await fetch(url, { cache: 'no-store' });
+        const response = await fetch(url);
         if (!response.ok) {
           throw new Error('Gallery request failed');
         }
