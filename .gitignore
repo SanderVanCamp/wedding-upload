@@ -5,5 +5,6 @@ vendor
 media.sqlite
 
 .ddev/.env
+.env
 
 .idea

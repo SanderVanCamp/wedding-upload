@@ -1,5 +1,7 @@
 <?php
 require_once 'vendor/autoload.php';
+require_once __DIR__ . '/env.php';
+loadEnvFile('/var/www/wedding-upload/.env');
 use Aws\S3\S3Client;
 
 function generateResizedJpeg(string $sourcePath, int $maxSize, int $quality): ?string
