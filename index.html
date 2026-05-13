@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>Sander & Silvie</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -66,7 +66,7 @@
     </div>
   </div>
 
-  <div id="viewer" class="fixed inset-0 z-50 hidden bg-[#140f0b]/92 backdrop-blur-md">
+  <div id="viewer" class="fixed inset-0 z-50 hidden bg-[#140f0b]/92 backdrop-blur-md touch-none overscroll-none">
     <div class="flex h-full flex-col">
       <div class="flex items-center justify-between px-4 py-4 sm:px-6">
         <div class="min-w-0">
@@ -107,6 +107,8 @@
     let viewerZoomTranslateX = 0;
     let viewerZoomTranslateY = 0;
     let viewerGesture = null;
+    let viewerLastTapAt = 0;
+    let viewerLastTapTarget = '';
 
     const getSharedPhotoId = () => {
       const match = window.location.hash.match(/photo=([^&]+)/);
@@ -187,6 +189,15 @@
       viewerZoomScale = clamp(nextScale, 1, 4);
       viewerZoomTranslateX = nextX;
       viewerZoomTranslateY = nextY;
+      applyViewerZoom();
+    };
+
+    const toggleViewerZoom = () => {
+      if (viewerZoomScale > 1) {
+        resetViewerZoom();
+      } else {
+        updateViewerZoom(2);
+      }
       applyViewerZoom();
     };
 
@@ -383,6 +394,7 @@
       renderViewer(galleryFiles, viewerOpenIndex, slideDirection);
       viewer.classList.remove('hidden');
       document.body.classList.add('overflow-hidden');
+      document.body.classList.add('overscroll-none');
       syncSharedPhotoState(galleryFiles[viewerOpenIndex]?.id || '');
       pendingSharedPhotoId = '';
       sharedPhotoResolved = true;
@@ -391,6 +403,7 @@
     const closeViewerPanel = () => {
       viewer.classList.add('hidden');
       document.body.classList.remove('overflow-hidden');
+      document.body.classList.remove('overscroll-none');
       syncSharedPhotoState('');
     };
 
@@ -535,6 +548,18 @@
       }
 
       const touch = event.changedTouches[0];
+      const tappedImage = Boolean(event.target.closest('[data-zoom-target]'));
+      const now = Date.now();
+      if (tappedImage && now - viewerLastTapAt < 280 && viewerLastTapTarget === 'image') {
+        viewerLastTapAt = 0;
+        viewerLastTapTarget = '';
+        toggleViewerZoom();
+        event.preventDefault();
+        return;
+      }
+      viewerLastTapAt = now;
+      viewerLastTapTarget = tappedImage ? 'image' : '';
+
       const deltaX = touch.clientX - viewerTouchStartX;
       const deltaY = touch.clientY - viewerTouchStartY;
 
