@@ -108,5 +108,5 @@ try {
 }
 
 header('Content-Type: ' . ($row['mime_type'] ?: 'application/octet-stream'));
-header('Cache-Control: public, max-age=3600');
+header('Cache-Control: public, max-age=31536000, immutable');
 echo (string) $result['Body'];

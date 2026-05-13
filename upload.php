@@ -2,7 +2,7 @@
 require_once 'vendor/autoload.php';
 use Aws\S3\S3Client;
 
-function generateImageThumbnail(string $sourcePath): ?string
+function generateResizedJpeg(string $sourcePath, int $maxSize, int $quality): ?string
 {
   $info = @getimagesize($sourcePath);
   if (!$info || !isset($info[2])) {
@@ -27,7 +27,6 @@ function generateImageThumbnail(string $sourcePath): ?string
     return null;
   }
 
-  $maxSize = 300;
   $scale = min($maxSize / $width, $maxSize / $height, 1);
   $targetWidth = max(1, (int) round($width * $scale));
   $targetHeight = max(1, (int) round($height * $scale));
@@ -46,11 +45,26 @@ function generateImageThumbnail(string $sourcePath): ?string
   imagecopyresampled($thumb, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
 
   ob_start();
-  imagejpeg($thumb, null, 72);
+  imagejpeg($thumb, null, $quality);
   $jpeg = ob_get_clean();
   imagedestroy($thumb);
   imagedestroy($source);
   return $jpeg === false ? null : $jpeg;
+}
+
+function generateImageThumbnail(string $sourcePath): ?string
+{
+  return generateResizedJpeg($sourcePath, 300, 72);
+}
+
+function generateTinyPreviewDataUri(string $sourcePath): ?string
+{
+  $jpeg = generateResizedJpeg($sourcePath, 24, 35);
+  if ($jpeg === null) {
+    return null;
+  }
+
+  return 'data:image/jpeg;base64,' . base64_encode($jpeg);
 }
 
 function detectExtension(string $fileName, string $fileMime): string
@@ -155,10 +169,17 @@ function getDb(): PDO
           mime_type TEXT NOT NULL,
           kind TEXT NOT NULL,
           object_key TEXT NOT NULL,
+          preview_data_uri TEXT,
           thumb_object_key TEXT,
           created_at TEXT NOT NULL
         )
       ');
+    } else {
+      foreach (['preview_data_uri'] as $columnName) {
+        if (!isset($columns[$columnName])) {
+          $pdo->exec('ALTER TABLE uploads ADD COLUMN ' . $columnName . ' TEXT');
+        }
+      }
     }
   } else {
     $pdo->exec('
@@ -169,6 +190,7 @@ function getDb(): PDO
         mime_type TEXT NOT NULL,
         kind TEXT NOT NULL,
         object_key TEXT NOT NULL,
+        preview_data_uri TEXT,
         thumb_object_key TEXT,
         created_at TEXT NOT NULL
       )
@@ -291,6 +313,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $kind = str_starts_with($fileMime, 'video/') ? 'video' : 'image';
     $extension = detectExtension($fileName, $fileMime);
     $objectKey = 'uploads/originals/' . $localKey . '.' . $extension;
+    $previewDataUri = null;
     $thumbObjectKey = null;
     $displayObjectKey = null;
 
@@ -299,10 +322,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       'Key' => $objectKey,
       'SourceFile' => $filePath,
       'ContentType' => $fileMime,
+      'CacheControl' => 'public, max-age=31536000, immutable',
       'ACL' => 'private',
     ]);
 
     if ($kind === 'image') {
+      $previewDataUri = generateTinyPreviewDataUri($filePath);
       $displayBody = resizeImageForUpload($filePath, 1200);
       if ($displayBody !== null) {
         $displayObjectKey = 'uploads/display/' . $localKey . '.jpg';
@@ -311,6 +336,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'Key' => $displayObjectKey,
           'Body' => $displayBody,
           'ContentType' => 'image/jpeg',
+          'CacheControl' => 'public, max-age=31536000, immutable',
           'ACL' => 'private',
         ]);
       }
@@ -323,6 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'Key' => $thumbObjectKey,
           'Body' => $thumbBody,
           'ContentType' => 'image/jpeg',
+          'CacheControl' => 'public, max-age=31536000, immutable',
           'ACL' => 'private',
         ]);
       }
@@ -330,9 +357,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stmt = $db->prepare('
       INSERT OR REPLACE INTO uploads
-        (local_key, file_name, mime_type, kind, object_key, thumb_object_key, created_at)
+        (local_key, file_name, mime_type, kind, object_key, preview_data_uri, thumb_object_key, created_at)
       VALUES
-        (:local_key, :file_name, :mime_type, :kind, :object_key, :thumb_object_key, :created_at)
+        (:local_key, :file_name, :mime_type, :kind, :object_key, :preview_data_uri, :thumb_object_key, :created_at)
     ');
     $stmt->execute([
       ':local_key' => $localKey,
@@ -340,6 +367,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ':mime_type' => $fileMime,
       ':kind' => $kind,
       ':object_key' => $objectKey,
+      ':preview_data_uri' => $previewDataUri,
       ':thumb_object_key' => $thumbObjectKey,
       ':created_at' => gmdate('c'),
     ]);
@@ -352,8 +380,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     echo json_encode([
       'success' => true,
       'objectKey' => $objectKey,
-      'displayObjectKey' => $displayObjectKey,
+      'previewDataUri' => $previewDataUri,
       'thumbObjectKey' => $thumbObjectKey,
+      'displayObjectKey' => $displayObjectKey,
     ]);
 
   } catch (Exception $e) {

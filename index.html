@@ -142,28 +142,52 @@
       }, 2400);
     };
 
-    const renderGalleryItems = (files, startIndex = 0) => files.map((file, index) => `
-        <figure class="overflow-hidden">
-          <button type="button" data-index="${startIndex + index}" class="block w-full text-left">
-            ${file.kind === 'video'
-        ? `<div class="relative aspect-[1/1] w-full overflow-hidden bg-black">
-                <div class="absolute inset-0 bg-[#120f0d]"></div>
-                <div class="absolute inset-0 flex items-center justify-center text-white/90">
-                  <span class="rounded-full bg-black/55 px-3 py-1 text-xs font-medium tracking-wide backdrop-blur-sm">Video</span>
-                </div>
-              </div>`
-        : `<img src="${file.thumbSrc || file.src}" alt="${escapeHtml(file.name)}" class="aspect-[1/1] w-full object-cover" loading="lazy" decoding="async" fetchpriority="low">`
+    const appendGallery = (html) => {
+      if (!html.trim()) {
+        return;
       }
-          </button>
-        </figure>
-      `).join('');
 
-    const appendGallery = (files) => {
-      const startIndex = galleryFiles.length;
-      galleryFiles = galleryFiles.concat(files);
-      if (files.length) {
-        galleryGrid.insertAdjacentHTML('beforeend', renderGalleryItems(files, startIndex));
+      const beforeCount = galleryGrid.querySelectorAll('button[data-index]').length;
+      galleryGrid.insertAdjacentHTML('beforeend', html);
+      const buttons = Array.from(galleryGrid.querySelectorAll('button[data-index]')).slice(beforeCount);
+      buttons.forEach((button, index) => {
+        button.dataset.index = String(beforeCount + index);
+        galleryFiles.push({
+          id: button.dataset.id || '',
+          name: button.dataset.name || '',
+          kind: button.dataset.kind || 'image',
+          mimeType: button.dataset.mimeType || '',
+          src: button.dataset.src || '',
+          displaySrc: button.dataset.displaySrc || '',
+          thumbSrc: button.dataset.thumbSrc || '',
+        });
+      });
+
+      observeGalleryImages();
+    };
+
+    const upgradeGalleryImage = (img) => {
+      const thumbSrc = img.dataset.thumbSrc;
+      if (!thumbSrc || img.dataset.upgraded === '1') {
+        return;
       }
+
+      img.dataset.upgraded = '1';
+      img.src = thumbSrc;
+    };
+
+    let imageObserver = null;
+    const observeGalleryImages = () => {
+      if (!imageObserver) {
+        galleryGrid.querySelectorAll('img[data-thumb-src]:not([data-upgraded="1"])').forEach((img) => {
+          upgradeGalleryImage(img);
+        });
+        return;
+      }
+
+      galleryGrid.querySelectorAll('img[data-thumb-src]:not([data-upgraded="1"])').forEach((img) => {
+        imageObserver.observe(img);
+      });
     };
 
     const loadGalleryPage = async (reset = false) => {
@@ -190,9 +214,9 @@
           throw new Error('Gallery request failed');
         }
 
-        const data = await response.json();
-        appendGallery(data.files || []);
-        galleryNextPageToken = data.nextPageToken || null;
+        const html = await response.text();
+        appendGallery(html);
+        galleryNextPageToken = response.headers.get('X-Next-Page-Token') || null;
         galleryHasMore = Boolean(galleryNextPageToken);
       } catch (error) {
         galleryState.textContent = 'Could not load pictures.';
@@ -216,7 +240,10 @@
           <figure class="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-[28px] bg-[#0f0b08] shadow-[0_20px_90px_rgba(0,0,0,0.35)]">
             ${file.kind === 'video'
         ? `<video src="${file.src}" class="h-full min-h-0 w-full flex-1 bg-black object-contain" controls playsinline autoplay preload="metadata"></video>`
-        : `<img src="${file.displaySrc || file.src}" alt="${file.name.replaceAll('"', '&quot;')}" class="h-full min-h-0 w-full flex-1 object-contain bg-black" loading="eager" decoding="async" fetchpriority="high">`
+        : `<div class="relative h-full min-h-0 w-full flex-1 bg-black">
+              <img src="${file.thumbSrc || file.src}" alt="${file.name.replaceAll('"', '&quot;')}" class="absolute inset-0 h-full w-full object-contain transition-opacity duration-150 opacity-100" loading="eager" decoding="async" fetchpriority="high">
+              <img src="${file.thumbSrc || file.src}" data-display-src="${file.displaySrc || file.src}" alt="${file.name.replaceAll('"', '&quot;')}" class="absolute inset-0 h-full w-full object-contain transition-opacity duration-150 opacity-0" loading="eager" decoding="async" fetchpriority="high">
+            </div>`
       }
           </figure>
         </div>
@@ -234,6 +261,28 @@
           openViewer(viewerOpenIndex + 1);
         }
       });
+
+      const thumbImage = viewerList.querySelector('img:not([data-display-src])');
+      const displayImage = viewerList.querySelector('img[data-display-src]');
+      if (displayImage) {
+        const displaySrc = displayImage.dataset.displaySrc;
+        if (displaySrc) {
+          const upgraded = new Image();
+          upgraded.decoding = 'async';
+          upgraded.onload = () => {
+            displayImage.src = displaySrc;
+            requestAnimationFrame(() => {
+              displayImage.classList.remove('opacity-0');
+              displayImage.classList.add('opacity-100');
+              if (thumbImage) {
+                thumbImage.classList.add('opacity-0');
+              }
+            });
+          };
+          upgraded.src = displaySrc;
+        }
+      }
+
     };
 
     const openViewer = (index) => {
@@ -376,6 +425,20 @@
         }
       }, { rootMargin: '800px 0px' });
       galleryObserver.observe(gallerySentinel);
+
+      imageObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            upgradeGalleryImage(entry.target);
+          }
+        });
+      }, { rootMargin: '200px 0px' });
+
+      observeGalleryImages();
+    } else {
+      galleryGrid.querySelectorAll('img[data-thumb-src]').forEach((img) => {
+        upgradeGalleryImage(img);
+      });
     }
 
     window.addEventListener('scroll', maybeLoadMore, { passive: true });
