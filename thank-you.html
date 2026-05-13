@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="nl" class="scroll-smooth">
+<head>
+  <link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bedankt! | Sander & Silvie</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+
+  <style>
+    @font-face {
+      font-family: "New Icon Serif Condensed";
+      src: url("./fonts/new-icon-serif-condensed.otf") format("opentype");
+      font-style: normal;
+      font-weight: 400;
+    }
+
+    .font-display {
+      font-family: "New Icon Serif Condensed", serif;
+    }
+    .font-body {
+      font-family: "Montserrat", sans-serif;
+    }
+
+    :root {
+      color-interpolation-filters: sRGB;
+      color-scheme: only light;
+    }
+
+    html, body {
+      supported-color-schemes: light;
+    }
+  </style>
+</head>
+<body class="bg-[#fcf8f5] font-body text-[#798060]">
+
+<main class="min-h-screen flex items-center justify-center px-6 py-20">
+  <section
+    data-aos="zoom-in"
+    data-aos-duration="800"
+    class="relative w-full max-w-2xl overflow-hidden rounded-[40px] bg-white p-10 md:p-16 text-center shadow-sm border border-[#efcfbd]/30"
+  >
+
+    <div class="relative z-10">
+      <div class="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-full bg-[#f3d7c2]/30">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-[#c77452]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+
+      <h1 class="font-display text-4xl md:text-6xl uppercase tracking-widest text-[#c77452]">
+        Bedankt!
+      </h1>
+
+      <p class="mt-6 text-lg leading-relaxed text-[#798060]">
+        Je bericht is goed aangekomen.
+      </p>
+    </div>
+  </section>
+</main>
+
+<script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script>
+  AOS.init();
+</script>
+
+</body>
+</html>
