@@ -1,0 +1,11 @@
+{
+  "CORSRules": [
+    {
+      "AllowedOrigins": ["https://wedding-upload.ddev.site", "https://https://vooraltijdmijnliefje.be"],
+      "AllowedMethods": ["GET", "HEAD", "PUT", "POST", "OPTIONS"],
+      "AllowedHeaders": ["*"],
+      "ExposeHeaders": ["ETag"],
+      "MaxAgeSeconds": 3000
+    }
+  ]
+}

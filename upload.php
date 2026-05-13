@@ -239,54 +239,21 @@ function getBucketName(): string
   return $bucket;
 }
 
-// Path for chunk assembly
-$tempDir = __DIR__ . '/tmp/';
-
-$s3 = getS3Client();
-$bucket = getBucketName();
-
-// Check if this is a chunked request from FilePond
-$patchId = $_SERVER['HTTP_UPLOAD_NAME'] ?? NULL;
-
-// --- STEP 1: Handle Chunks (PATCH) ---
-if ($_SERVER['REQUEST_METHOD'] === 'PATCH') {
-  // Ensure the temp directory exists
-  if (!is_dir($tempDir)) {
-    mkdir($tempDir, 0777, true);
-  }
-
-  if (!$patchId) {
-    header('HTTP/1.1 400 Bad Request');
-    echo "Missing Upload-Name header";
-    exit;
-  }
-
-  $tempFilePath = $tempDir . $patchId;
-  $input = fopen("php://input", "rb");
-  $file = fopen($tempFilePath, "ab"); // Append binary mode
-
-  if ($input && $file) {
-    stream_copy_to_stream($input, $file);
-  }
-
-  fclose($input);
-  fclose($file);
-  exit;
-}
-
 // --- STEP 2: Handle Finalization (POST) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $isChunked = isset($_SERVER['HTTP_UPLOAD_NAME']);
   $fileName = $_SERVER['HTTP_UPLOAD_FILENAME'] ?? ($_FILES['file']['name'] ?? 'wedding-upload-' . time());
 
-  // Determine the source path
   if ($isChunked) {
+    $tempDir = __DIR__ . '/tmp/';
+    if (!is_dir($tempDir)) {
+      mkdir($tempDir, 0777, true);
+    }
     $filePath = $tempDir . $_SERVER['HTTP_UPLOAD_NAME'];
   } else {
     $filePath = $_FILES['file']['tmp_name'] ?? '';
   }
 
-  // CRITICAL: Safety check for the "Path must not be empty" error
   if (empty($filePath) || !file_exists($filePath)) {
     header('HTTP/1.1 400 Bad Request');
     echo "Error: File source not found. Path: " . ($filePath ?: 'EMPTY');
@@ -306,6 +273,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fileMime = mime_content_type($filePath) ?: ($_FILES['file']['type'] ?? 'application/octet-stream');
   }
 
+  $localKey = sha1($fileName . '|' . ($filePath ?: '') . '|' . microtime(true));
+  $extension = detectExtension($fileName, $fileMime);
+  $objectKey = 'uploads/originals/' . $localKey . '.' . $extension;
+
   if (!str_starts_with($fileMime, 'image/') && !str_starts_with($fileMime, 'video/')) {
     header('HTTP/1.1 415 Unsupported Media Type');
     echo 'Only images and videos are allowed';
@@ -314,14 +285,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   try {
     $db = getDb();
-    $localKey = sha1($fileName . '|' . ($filePath ?: '') . '|' . microtime(true));
     $kind = str_starts_with($fileMime, 'video/') ? 'video' : 'image';
-    $extension = detectExtension($fileName, $fileMime);
-    $objectKey = 'uploads/originals/' . $localKey . '.' . $extension;
+    $s3 = getS3Client();
+    $bucket = getBucketName();
     $previewDataUri = null;
     $thumbObjectKey = null;
     $displayObjectKey = null;
-
     $s3->putObject([
       'Bucket' => $bucket,
       'Key' => $objectKey,
@@ -345,7 +314,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'ACL' => 'private',
         ]);
 
-        $thumbBody = generateImageThumbnail($filePath);
+        $thumbSourcePath = tempnam(sys_get_temp_dir(), 'wdu-thumb-');
+        if ($thumbSourcePath === false) {
+          $thumbBody = null;
+        } else {
+          file_put_contents($thumbSourcePath, $displayBody);
+          $thumbBody = generateImageThumbnail($thumbSourcePath);
+          @unlink($thumbSourcePath);
+        }
+
         if ($thumbBody === null) {
           $thumbBody = $displayBody;
         }
@@ -383,7 +360,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ':created_at' => gmdate('c'),
     ]);
 
-    // Cleanup: Remove the temporary file from local storage
     if ($isChunked && file_exists($filePath)) {
       unlink($filePath);
     }
