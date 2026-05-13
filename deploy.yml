@@ -1,0 +1,17 @@
+config:
+  remote_user: sander
+
+hosts:
+  wedding-upload:
+    hostname: 100.92.32.19
+    deploy_path: /var/www/wedding-upload
+
+tasks:
+  deploy:pull:
+    - cd: /var/www/wedding-upload
+    - run: git fetch --all --prune
+    - run: git reset --hard origin/main
+    - run: git clean -fd
+
+  deploy:
+    - deploy:pull

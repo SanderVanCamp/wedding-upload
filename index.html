@@ -66,7 +66,7 @@
     </div>
   </div>
 
-  <div id="viewer" class="fixed inset-0 z-50 hidden bg-[#140f0b]/92 backdrop-blur-md touch-none overscroll-none">
+  <div id="viewer" class="fixed inset-0 z-50 hidden bg-[#140f0b]/92 backdrop-blur-md touch-none overscroll-none" style="touch-action: none; overscroll-behavior: none;">
     <div class="flex h-full flex-col">
       <div class="flex items-center justify-between px-4 py-4 sm:px-6">
         <div class="min-w-0">
@@ -322,7 +322,7 @@
           <figure data-viewer-frame class="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-[28px] bg-[#0f0b08] shadow-[0_20px_90px_rgba(0,0,0,0.35)] transition-[transform,opacity] duration-200 ease-out">
             ${file.kind === 'video'
         ? `<video src="${file.src}" class="h-full min-h-0 w-full flex-1 bg-black object-contain" controls playsinline autoplay preload="metadata"></video>`
-        : `<div data-zoom-target class="relative h-full min-h-0 w-full flex-1 bg-black touch-none will-change-transform">
+        : `<div data-zoom-target class="relative h-full min-h-0 w-full flex-1 bg-black touch-none will-change-transform" style="touch-action: none; overscroll-behavior: none;">
               <img src="${file.thumbSrc || file.src}" alt="${file.name.replaceAll('"', '&quot;')}" class="absolute inset-0 h-full w-full object-contain transition-opacity duration-150 opacity-100" loading="eager" decoding="async" fetchpriority="high">
               <img src="${file.thumbSrc || file.src}" data-display-src="${file.displaySrc || file.src}" alt="${file.name.replaceAll('"', '&quot;')}" class="absolute inset-0 h-full w-full object-contain transition-opacity duration-150 opacity-0" loading="eager" decoding="async" fetchpriority="high">
             </div>`
@@ -394,6 +394,10 @@
       renderViewer(galleryFiles, viewerOpenIndex, slideDirection);
       viewer.classList.remove('hidden');
       document.body.classList.add('overflow-hidden');
+      document.body.style.position = 'fixed';
+      document.body.style.inset = '0';
+      document.body.style.width = '100%';
+      document.documentElement.style.overscrollBehavior = 'none';
       document.body.classList.add('overscroll-none');
       syncSharedPhotoState(galleryFiles[viewerOpenIndex]?.id || '');
       pendingSharedPhotoId = '';
@@ -403,6 +407,10 @@
     const closeViewerPanel = () => {
       viewer.classList.add('hidden');
       document.body.classList.remove('overflow-hidden');
+      document.body.style.position = '';
+      document.body.style.inset = '';
+      document.body.style.width = '';
+      document.documentElement.style.overscrollBehavior = '';
       document.body.classList.remove('overscroll-none');
       syncSharedPhotoState('');
     };
