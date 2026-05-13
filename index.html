@@ -104,6 +104,25 @@
     let viewerTouchStartX = 0;
     let viewerTouchStartY = 0;
 
+    const getSharedPhotoId = () => {
+      const match = window.location.hash.match(/photo=([^&]+)/);
+      return match ? decodeURIComponent(match[1]) : '';
+    };
+
+    const syncSharedPhotoState = (photoId) => {
+      if (photoId) {
+        const hash = `photo=${encodeURIComponent(photoId)}`;
+        if (window.location.hash !== `#${hash}`) {
+          history.replaceState(null, '', `#${hash}`);
+        }
+      } else if (window.location.hash.startsWith('#photo=')) {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    };
+
+    let pendingSharedPhotoId = getSharedPhotoId();
+    let sharedPhotoResolved = false;
+
     const escapeHtml = (value) => value
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
@@ -142,6 +161,21 @@
       }, 2400);
     };
 
+    const tryOpenSharedPhoto = () => {
+      if (sharedPhotoResolved || !pendingSharedPhotoId) {
+        return false;
+      }
+
+      const targetIndex = galleryFiles.findIndex((file) => file.id === pendingSharedPhotoId);
+      if (targetIndex === -1) {
+        return false;
+      }
+
+      sharedPhotoResolved = true;
+      openViewer(targetIndex);
+      return true;
+    };
+
     const appendGallery = (html) => {
       if (!html.trim()) {
         return;
@@ -164,6 +198,7 @@
       });
 
       observeGalleryImages();
+      tryOpenSharedPhoto();
     };
 
     const upgradeGalleryImage = (img) => {
@@ -221,6 +256,10 @@
         appendGallery(html);
         galleryNextPageToken = response.headers.get('X-Next-Page-Token') || null;
         galleryHasMore = Boolean(galleryNextPageToken);
+
+        if (pendingSharedPhotoId && !sharedPhotoResolved && galleryHasMore) {
+          loadGalleryPage();
+        }
       } catch (error) {
         galleryState.textContent = 'Could not load pictures.';
       } finally {
@@ -293,11 +332,15 @@
       renderViewer(galleryFiles, viewerOpenIndex);
       viewer.classList.remove('hidden');
       document.body.classList.add('overflow-hidden');
+      syncSharedPhotoState(galleryFiles[viewerOpenIndex]?.id || '');
+      pendingSharedPhotoId = '';
+      sharedPhotoResolved = true;
     };
 
     const closeViewerPanel = () => {
       viewer.classList.add('hidden');
       document.body.classList.remove('overflow-hidden');
+      syncSharedPhotoState('');
     };
 
     const uploadFiles = async () => {
@@ -408,6 +451,22 @@
       } else if (event.key === 'Escape') {
         event.preventDefault();
         closeViewerPanel();
+      }
+    });
+    window.addEventListener('hashchange', () => {
+      const sharedPhotoId = getSharedPhotoId();
+      pendingSharedPhotoId = sharedPhotoId;
+      sharedPhotoResolved = false;
+      if (!sharedPhotoId) {
+        if (!viewer.classList.contains('hidden')) {
+          closeViewerPanel();
+        }
+        return;
+      }
+
+      const targetIndex = galleryFiles.findIndex((file) => file.id === sharedPhotoId);
+      if (targetIndex !== -1) {
+        openViewer(targetIndex);
       }
     });
     const maybeLoadMore = () => {
