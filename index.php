@@ -1,3 +1,4 @@
+<?php $sharedPhotoId = preg_match('/^[a-f0-9]{40}$/', (string) ($_GET['photo'] ?? '')) ? (string) $_GET['photo'] : ''; ?>
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
@@ -16,7 +17,7 @@
   <meta name="color-scheme" content="light">
 
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://vooraltijdmijnliefje.be/suite">
+  <meta property="og:url" content="https://vooraltijdmijnliefje.be/index.php<?php echo $sharedPhotoId ? '?photo=' . htmlspecialchars($sharedPhotoId, ENT_QUOTES, 'UTF-8') : ''; ?>">
   <meta property="og:title" content="Sander & Silvie">
   <meta property="og:description"
         content="Heb je foto's genomen op ons trouwfeest? Deel ze hier met ons, zodat we samen nog eens kunnen nagenieten van die mooie dag.">
@@ -109,6 +110,7 @@
     const viewerCount = document.getElementById('viewerCount');
     const shareViewer = document.getElementById('shareViewer');
     const closeViewer = document.getElementById('closeViewer');
+    const initialSharedPhotoId = <?php echo json_encode($sharedPhotoId); ?>;
 
     let uploadInProgress = false;
     let uploadSuccessTimer = null;
@@ -131,7 +133,11 @@
 
     const getSharedPhotoId = () => {
       const match = window.location.hash.match(/photo=([^&]+)/);
-      return match ? decodeURIComponent(match[1]) : '';
+      if (match) {
+        return decodeURIComponent(match[1]);
+      }
+      const queryMatch = window.location.search.match(/[?&]photo=([^&]+)/);
+      return queryMatch ? decodeURIComponent(queryMatch[1]) : '';
     };
 
     const syncSharedPhotoState = (photoId) => {
@@ -147,7 +153,7 @@
       }
     };
 
-    let pendingSharedPhotoId = getSharedPhotoId();
+    let pendingSharedPhotoId = getSharedPhotoId() || initialSharedPhotoId;
     let sharedPhotoResolved = false;
 
     const escapeHtml = (value) => value
@@ -238,6 +244,31 @@
       sharedPhotoResolved = true;
       openViewer(targetIndex);
       return true;
+    };
+
+    const openSharedPhotoDirectly = async () => {
+      if (sharedPhotoResolved || !pendingSharedPhotoId) {
+        return false;
+      }
+
+      try {
+        const response = await fetch(`./photo.php?photo=${encodeURIComponent(pendingSharedPhotoId)}`, { cache: 'no-store' });
+        if (!response.ok) {
+          return false;
+        }
+        const file = await response.json();
+        if (!file || !file.id) {
+          return false;
+        }
+        galleryFiles = [file];
+        viewerOpenIndex = 0;
+        sharedPhotoResolved = true;
+        viewer.classList.remove('hidden');
+        renderViewer(galleryFiles, 0, 0);
+        return true;
+      } catch (error) {
+        return false;
+      }
     };
 
     const appendGallery = (html) => {
@@ -720,6 +751,9 @@
     window.addEventListener('scroll', maybeLoadMore, { passive: true });
     window.addEventListener('resize', maybeLoadMore);
     loadGalleryPage(true);
+    if (pendingSharedPhotoId) {
+      openSharedPhotoDirectly();
+    }
   </script>
 </main>
 </body>

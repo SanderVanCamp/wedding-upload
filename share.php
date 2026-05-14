@@ -13,7 +13,7 @@ $pageUrl = 'https://vooraltijdmijnliefje.be/share.php';
 $shareImage = $fallbackImage;
 $title = $fallbackTitle;
 $description = $fallbackDescription;
-$galleryUrl = '/index.html';
+$galleryUrl = '/index.php';
 
 function getS3Client(): S3Client
 {
@@ -87,7 +87,7 @@ if ($photoId !== '' && preg_match('/^[a-f0-9]{40}$/', $photoId)) {
       $description = $row['kind'] === 'video'
         ? 'Bekijk deze video uit ons trouwalbum.'
         : 'Bekijk deze foto uit ons trouwalbum.';
-      $galleryUrl = '/index.html#photo=' . rawurlencode($photoId);
+      $galleryUrl = '/index.php?photo=' . rawurlencode($photoId);
       $pageUrl = 'https://vooraltijdmijnliefje.be/share.php?photo=' . rawurlencode($photoId);
     }
   }
