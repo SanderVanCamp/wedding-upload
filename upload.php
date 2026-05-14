@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/request_guard.php';
+guardRequest(['POST'], true);
+applySecurityHeaders();
 require_once 'vendor/autoload.php';
 require_once __DIR__ . '/env.php';
 loadEnvFile('/var/www/wedding-upload/.env');
@@ -338,6 +341,13 @@ function getBucketName(): string
 
 // --- STEP 2: Handle Finalization (POST) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $contentType = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
+  if (!str_starts_with($contentType, 'multipart/form-data')) {
+    header('HTTP/1.1 415 Unsupported Media Type');
+    echo 'Expected multipart/form-data';
+    exit;
+  }
+
   $fileName = $_FILES['file']['name'] ?? ($_SERVER['HTTP_UPLOAD_FILENAME'] ?? ('wedding-upload-' . time()));
   $filePath = $_FILES['file']['tmp_name'] ?? '';
 

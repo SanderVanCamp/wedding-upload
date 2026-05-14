@@ -1,4 +1,8 @@
 <?php
+require_once __DIR__ . '/request_guard.php';
+$allowedMethods = ['GET', 'HEAD'];
+guardRequest($allowedMethods);
+applySecurityHeaders();
 $sharedPhotoId = preg_match('/^[a-f0-9]{40}$/', (string) ($_GET['photo'] ?? '')) ? (string) $_GET['photo'] : '';
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? 'vooraltijdmijnliefje.be';
@@ -59,8 +63,8 @@ if ($sharedPhotoId !== '') {
 <main class="relative min-h-screen overflow-hidden sm:px-6 lg:px-8">
 
   <div class="mx-auto max-w-7xl">
-    <header class="relative flex h-[50vh] items-center justify-center overflow-hidden bg-[#c77452] px-4 py-8 font-body text-[#f2d8c5] sm:py-10">
-      <div class="flex w-full flex-col items-center gap-12 sm:gap-6">
+    <header id="heroHeader" class="relative flex h-[50vh] items-center justify-center overflow-hidden bg-[#c77452] px-4 py-8 font-body text-[#f2d8c5] sm:py-10">
+      <div id="heroParallax" class="flex w-full flex-col items-center gap-12 sm:gap-6 will-change-transform">
         <img src="/hero-names.svg" alt="Sander & Silvie" class="h-auto max-h-[28vh] w-full max-w-[880px] object-contain sm:max-h-[30vh]" loading="eager" decoding="async">
         <input id="fileInput" type="file" accept="image/*,video/*" multiple class="hidden">
         <label for="fileInput"
@@ -130,6 +134,8 @@ if ($sharedPhotoId !== '') {
     const viewerList = document.getElementById('viewerList');
     const viewerCount = document.getElementById('viewerCount');
     const closeViewer = document.getElementById('closeViewer');
+    const heroHeader = document.getElementById('heroHeader');
+    const heroParallax = document.getElementById('heroParallax');
     const initialSharedPhotoId = <?php echo json_encode($sharedPhotoId); ?>;
 
     let uploadInProgress = false;
@@ -769,6 +775,16 @@ if ($sharedPhotoId !== '') {
       }
     };
 
+    const updateHeroParallax = () => {
+      if (!heroHeader || !heroParallax || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return;
+      }
+      const headerHeight = heroHeader.offsetHeight || 1;
+      const progress = clamp(window.scrollY / headerHeight, 0, 1);
+      const translateY = Math.round(progress * headerHeight * 0.2);
+      heroParallax.style.transform = `translate3d(0, ${translateY}px, 0)`;
+    };
+
     if ('IntersectionObserver' in window) {
       const galleryObserver = new IntersectionObserver((entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
@@ -789,7 +805,10 @@ if ($sharedPhotoId !== '') {
     }
 
     window.addEventListener('scroll', maybeLoadMore, { passive: true });
+    window.addEventListener('scroll', updateHeroParallax, { passive: true });
     window.addEventListener('resize', maybeLoadMore);
+    window.addEventListener('resize', updateHeroParallax);
+    updateHeroParallax();
     loadGalleryPage(true);
     if (pendingSharedPhotoId) {
       openSharedPhotoDirectly();
