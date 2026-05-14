@@ -62,7 +62,7 @@ if ($sharedPhotoId !== '') {
   <meta property="og:image:height"
         content="<?php echo (int) $ogImageHeight; ?>">
 
-  <link href="/dist/output.css?v=4" rel="stylesheet">
+  <link href="/dist/output.css?v=5" rel="stylesheet">
 </head>
 <body class="bg-[#ecd0b5] font-body text-ink">
 <main class="relative min-h-screen overflow-hidden sm:px-6 lg:px-8">
