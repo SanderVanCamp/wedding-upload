@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @source "../index.html";
+@source "../gallery.php";
 
 @theme {
   --color-ink: #1f1a17;
@@ -9,4 +10,37 @@
   --color-mist: #f8f5f2;
 
   --font-body: "Montserrat", sans-serif;
+}
+
+@layer components {
+  .gallery-figure {
+  }
+
+  .gallery-tile {
+    @apply block w-full text-left cursor-pointer overflow-hidden;
+  }
+
+  .gallery-tile-media {
+    @apply aspect-square w-full object-cover;
+  }
+
+  .gallery-video-wrap {
+    @apply relative aspect-square w-full overflow-hidden bg-black;
+  }
+
+  .gallery-video-icon-wrap {
+    @apply flex h-10 w-10 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm;
+  }
+
+  .gallery-video-overlay {
+    @apply absolute inset-0 bg-black/12;
+  }
+
+  .gallery-video-play {
+    @apply fill-white;
+  }
+
+  .gallery-video-center {
+    @apply absolute inset-0 flex items-center justify-center text-white/90;
+  }
 }

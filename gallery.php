@@ -5,6 +5,8 @@ guardRequest(['GET', 'HEAD']);
 applySecurityHeaders();
 require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/media_helpers.php';
+require_once __DIR__ . '/db_helpers.php';
 loadEnvFile('/var/www/wedding-upload/.env');
 
 use Aws\S3\S3Client;
@@ -15,14 +17,11 @@ $offset = max(0, (int) $pageToken);
 $queryLimit = $pageSize + 1;
 
 $dbPath = __DIR__ . '/media.sqlite';
-if (!file_exists($dbPath)) {
+if (!getReadDb($dbPath)) {
   header('X-Next-Page-Token: ');
   exit;
 }
-
-$db = new PDO('sqlite:' . $dbPath);
-$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+$db = getReadDb($dbPath);
 
 function getS3Client(): S3Client {
   static $client = NULL;
@@ -110,29 +109,22 @@ foreach ($files as $row) {
   $name = htmlspecialchars($row['file_name'], ENT_QUOTES, 'UTF-8');
   $kind = htmlspecialchars($row['kind'], ENT_QUOTES, 'UTF-8');
   $mimeType = htmlspecialchars($row['mime_type'], ENT_QUOTES, 'UTF-8');
-  $fullSrc = presignObjectUrl($s3, $bucket, $row['object_key']);
-  $displayObjectKey = str_replace('/originals/', '/display/', $row['object_key']);
-  $displaySrc = presignObjectUrl($s3, $bucket, $displayObjectKey);
-  $thumbObjectKey = $row['thumb_object_key'] ?: $displayObjectKey;
-  $thumbSrc = presignObjectUrl($s3, $bucket, $thumbObjectKey);
-  $previewSrc = htmlspecialchars($row['preview_data_uri'] ?: $thumbSrc, ENT_QUOTES, 'UTF-8');
-  $src = htmlspecialchars($fullSrc, ENT_QUOTES, 'UTF-8');
-  $displaySrc = htmlspecialchars($displaySrc, ENT_QUOTES, 'UTF-8');
-  $thumbSrc = htmlspecialchars($thumbSrc, ENT_QUOTES, 'UTF-8');
-
-  echo '<figure class="overflow-hidden">';
-  echo '<button type="button" data-index="" data-id="' . $id . '" data-name="' . $name . '" data-kind="' . $kind . '" data-mime-type="' . $mimeType . '" data-src="' . $src . '" data-display-src="' . $displaySrc . '" data-thumb-src="' . $thumbSrc . '" class="block w-full text-left">';
+  $previewSrc = htmlspecialchars($row['preview_data_uri'] ?: './thumb.php?photo=' . rawurlencode($row['local_key']), ENT_QUOTES, 'UTF-8');
+  $thumbSrc = $row['kind'] === 'video'
+    ? htmlspecialchars(presignObjectUrl($s3, $bucket, getThumbObjectKey($row)), ENT_QUOTES, 'UTF-8')
+    : htmlspecialchars('./thumb.php?photo=' . rawurlencode($row['local_key']), ENT_QUOTES, 'UTF-8');
+  echo '<button type="button" data-index="" data-id="' . $id . '" data-name="' . $name . '" data-kind="' . $kind . '" data-mime-type="' . $mimeType . '" data-thumb-src="' . $thumbSrc . '" class="gallery-tile">';
   if ($row['kind'] === 'video') {
-    echo '<div class="relative aspect-square w-full overflow-hidden bg-black">';
-    echo '<img src="' . $thumbSrc . '" alt="' . $name . '" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low">';
-    echo '<div class="absolute inset-0 bg-black/12"></div>';
-    echo '<div class="absolute inset-0 flex items-center justify-center text-white/90">';
-    echo '<div class="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm">';
-    echo '<svg viewBox="0 0 24 24" aria-hidden="true" class="h-5 w-5 fill-white"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>';
+    echo '<div class="gallery-video-wrap">';
+    echo '<img src="' . $thumbSrc . '" alt="' . $name . '" class="gallery-tile-media" loading="lazy" decoding="async" fetchpriority="low">';
+    echo '<div class="gallery-video-overlay"></div>';
+    echo '<div class="gallery-video-center">';
+    echo '<div class="gallery-video-icon-wrap">';
+    echo '<svg viewBox="0 0 24 24" aria-hidden="true" class="h-5 w-5 gallery-video-play"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>';
     echo '</div></div></div>';
   }
   else {
-    echo '<img src="' . $previewSrc . '" data-thumb-src="' . $thumbSrc . '" alt="' . $name . '" class="aspect-square w-full object-cover" loading="lazy" decoding="async" fetchpriority="low">';
+    echo '<img src="' . $previewSrc . '" data-thumb-src="' . $thumbSrc . '" alt="' . $name . '" class="gallery-tile-media" loading="lazy" decoding="async" fetchpriority="low">';
   }
-  echo '</button></figure>';
+  echo '</button>';
 }

@@ -4,6 +4,8 @@ guardRequest(['GET', 'HEAD']);
 applySecurityHeaders();
 require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/media_helpers.php';
+require_once __DIR__ . '/db_helpers.php';
 loadEnvFile('/var/www/wedding-upload/.env');
 
 use Aws\S3\S3Client;
@@ -81,16 +83,14 @@ function presignObjectUrl(S3Client $s3, string $bucket, string $key, int $minute
   return (string) $request->getUri();
 }
 
-if ($photoId !== '' && preg_match('/^[a-f0-9]{40}$/', $photoId)) {
+if ($photoId === '' || !preg_match('/^[a-f0-9]{40}$/', $photoId)) {
+  header('Content-Type: text/html; charset=UTF-8');
+  header('Cache-Control: public, max-age=60');
+} else {
   $dbPath = __DIR__ . '/media.sqlite';
-  if (file_exists($dbPath)) {
-    $db = new PDO('sqlite:' . $dbPath);
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-    $columns = [];
-    foreach ($db->query('PRAGMA table_info(uploads)') as $column) {
-      $columns[$column['name']] = true;
-    }
+  $db = getReadDb($dbPath);
+  if ($db) {
+    $columns = getUploadsColumnMap($dbPath);
     $hasThumbDimensions = isset($columns['thumb_width'], $columns['thumb_height']);
 
     $stmt = $db->prepare('
@@ -105,7 +105,7 @@ if ($photoId !== '' && preg_match('/^[a-f0-9]{40}$/', $photoId)) {
     if ($row) {
       $s3 = getS3Client();
       $bucket = getBucketName();
-      $displayObjectKey = str_replace('/originals/', '/display/', $row['object_key']);
+      $displayObjectKey = getDisplayObjectKey($row['object_key']);
       $shareImage = presignObjectUrl($s3, $bucket, $displayObjectKey, 60);
       $imageWidth = $fallbackImageWidth;
       $imageHeight = $fallbackImageHeight;

@@ -56,7 +56,6 @@
     --default-font-family: var(--font-sans);
     --default-mono-font-family: var(--font-mono);
     --color-ink: #1f1a17;
-    --color-paper: #f4efe9;
     --font-body: "Montserrat", sans-serif;
   }
 }
@@ -374,9 +373,6 @@
   .aspect-\[290\/210\] {
     aspect-ratio: 290/210;
   }
-  .aspect-square {
-    aspect-ratio: 1 / 1;
-  }
   .h-2 {
     height: calc(var(--spacing) * 2);
   }
@@ -416,8 +412,8 @@
   .min-h-0 {
     min-height: calc(var(--spacing) * 0);
   }
-  .min-h-\[40px\] {
-    min-height: 40px;
+  .min-h-10 {
+    min-height: calc(var(--spacing) * 10);
   }
   .min-h-\[62px\] {
     min-height: 62px;
@@ -485,6 +481,9 @@
   .max-w-200 {
     max-width: calc(var(--spacing) * 200);
   }
+  .max-w-220 {
+    max-width: calc(var(--spacing) * 220);
+  }
   .max-w-\[116px\] {
     max-width: 116px;
   }
@@ -493,9 +492,6 @@
   }
   .max-w-\[360px\] {
     max-width: 360px;
-  }
-  .max-w-\[880px\] {
-    max-width: 880px;
   }
   .max-w-full {
     max-width: 100%;
@@ -685,18 +681,6 @@
   .bg-black {
     background-color: var(--color-black);
   }
-  .bg-black\/12 {
-    background-color: color-mix(in srgb, #000 12%, transparent);
-    @supports (color: color-mix(in lab, red, red)) {
-      background-color: color-mix(in oklab, var(--color-black) 12%, transparent);
-    }
-  }
-  .bg-black\/55 {
-    background-color: color-mix(in srgb, #000 55%, transparent);
-    @supports (color: color-mix(in lab, red, red)) {
-      background-color: color-mix(in oklab, var(--color-black) 55%, transparent);
-    }
-  }
   .bg-emerald-500 {
     background-color: var(--color-emerald-500);
   }
@@ -720,9 +704,6 @@
   }
   .fill-none {
     fill: none;
-  }
-  .fill-white {
-    fill: var(--color-white);
   }
   .stroke-current {
     stroke: currentcolor;
@@ -927,9 +908,6 @@
   .text-\[\#f3d7c2\] {
     color: #f3d7c2;
   }
-  .text-ink {
-    color: var(--color-ink);
-  }
   .text-white {
     color: var(--color-white);
   }
@@ -937,12 +915,6 @@
     color: color-mix(in srgb, #fff 70%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
       color: color-mix(in oklab, var(--color-white) 70%, transparent);
-    }
-  }
-  .text-white\/90 {
-    color: color-mix(in srgb, #fff 90%, transparent);
-    @supports (color: color-mix(in lab, red, red)) {
-      color: color-mix(in oklab, var(--color-white) 90%, transparent);
     }
   }
   .normal-case {
@@ -989,11 +961,6 @@
   }
   .backdrop-blur-md {
     --tw-backdrop-blur: blur(var(--blur-md));
-    -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
-    backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
-  }
-  .backdrop-blur-sm {
-    --tw-backdrop-blur: blur(var(--blur-sm));
     -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
     backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
   }
@@ -1428,6 +1395,64 @@
   .xl\:flex-row {
     @media (width >= 80rem) {
       flex-direction: row;
+    }
+  }
+}
+@layer components {
+  .gallery-tile {
+    display: block;
+    width: 100%;
+    cursor: pointer;
+    overflow: hidden;
+    text-align: left;
+  }
+  .gallery-tile-media {
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    object-fit: cover;
+  }
+  .gallery-video-wrap {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    overflow: hidden;
+    background-color: var(--color-black);
+  }
+  .gallery-video-icon-wrap {
+    display: flex;
+    height: calc(var(--spacing) * 10);
+    width: calc(var(--spacing) * 10);
+    align-items: center;
+    justify-content: center;
+    border-radius: calc(infinity * 1px);
+    background-color: color-mix(in srgb, #000 55%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-black) 55%, transparent);
+    }
+    --tw-backdrop-blur: blur(var(--blur-sm));
+    -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+    backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+  }
+  .gallery-video-overlay {
+    position: absolute;
+    inset: calc(var(--spacing) * 0);
+    background-color: color-mix(in srgb, #000 12%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-black) 12%, transparent);
+    }
+  }
+  .gallery-video-play {
+    fill: var(--color-white);
+  }
+  .gallery-video-center {
+    position: absolute;
+    inset: calc(var(--spacing) * 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: color-mix(in srgb, #fff 90%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      color: color-mix(in oklab, var(--color-white) 90%, transparent);
     }
   }
 }

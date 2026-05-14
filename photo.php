@@ -4,6 +4,8 @@ guardRequest(['GET', 'HEAD']);
 applySecurityHeaders();
 require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/media_helpers.php';
+require_once __DIR__ . '/db_helpers.php';
 loadEnvFile('/var/www/wedding-upload/.env');
 
 use Aws\S3\S3Client;
@@ -17,16 +19,13 @@ if ($photoId === '' || !preg_match('/^[a-f0-9]{40}$/', $photoId)) {
 }
 
 $dbPath = __DIR__ . '/media.sqlite';
-if (!file_exists($dbPath)) {
+if (!getReadDb($dbPath)) {
   header('HTTP/1.1 404 Not Found');
   header('Content-Type: application/json');
   echo json_encode(['error' => 'Photo not found']);
   exit;
 }
-
-$db = new PDO('sqlite:' . $dbPath);
-$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+$db = getReadDb($dbPath);
 
 function getS3Client(): S3Client
 {
@@ -101,8 +100,10 @@ if (!$row) {
 
 $s3 = getS3Client();
 $bucket = getBucketName();
-$displayObjectKey = str_replace('/originals/', '/display/', $row['object_key']);
-$thumbObjectKey = $row['thumb_object_key'] ?: $displayObjectKey;
+$displayObjectKey = getDisplayObjectKey($row['object_key']);
+$thumbSrc = $row['kind'] === 'video'
+  ? presignObjectUrl($s3, $bucket, getThumbObjectKey($row))
+  : './thumb.php?photo=' . rawurlencode($row['local_key']);
 
 header('Content-Type: application/json');
 echo json_encode([
@@ -112,6 +113,6 @@ echo json_encode([
   'mimeType' => $row['mime_type'],
   'src' => presignObjectUrl($s3, $bucket, $row['object_key']),
   'displaySrc' => presignObjectUrl($s3, $bucket, $displayObjectKey),
-  'thumbSrc' => presignObjectUrl($s3, $bucket, $thumbObjectKey),
+  'thumbSrc' => $thumbSrc,
   'previewDataUri' => $row['preview_data_uri'],
 ]);

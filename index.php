@@ -62,10 +62,10 @@ if ($sharedPhotoId !== '') {
   <meta property="og:image:height"
         content="<?php echo (int) $ogImageHeight; ?>">
 
-  <link href="/dist/output.css?v=5" rel="stylesheet">
+  <link href="/dist/output.css?v=7" rel="stylesheet">
 </head>
-<body class="bg-[#ecd0b5] font-body text-ink">
-<main class="relative min-h-screen overflow-hidden sm:px-6 lg:px-8">
+<body class="bg-[#ecd0b5] relative min-h-screen sm:px-6 lg:px-8">
+<main>
 
   <div class="mx-auto max-w-7xl">
     <header id="heroHeader"
@@ -73,12 +73,12 @@ if ($sharedPhotoId !== '') {
       <div id="heroParallax"
            class="flex w-full flex-col items-center gap-12 sm:gap-6 will-change-transform">
         <img src="/hero-names.svg" alt="Sander & Silvie"
-             class="h-auto max-h-[28vh] w-full max-w-[880px] object-contain sm:max-h-[30vh]"
+             class="h-auto max-h-[28vh] w-full max-w-220 object-contain sm:max-h-[30vh]"
              loading="eager" decoding="async">
         <input id="fileInput" type="file" accept="image/*,video/*" multiple
                class="hidden">
         <label for="fileInput"
-               class="whitespace-nowrap inline-flex min-h-[40px] items-center justify-center rounded-xl bg-[#f3d7c2] px-4 sm:px-8 text-center font-semibold uppercase tracking-wide md:tracking-wider text-[#798060] shadow-[8px_8px_0_0_rgba(235,191,161,0.55)] transition hover:translate-y-[1px] cursor-pointer">
+               class="whitespace-nowrap inline-flex min-h-10 items-center justify-center rounded-xl bg-[#f3d7c2] px-4 sm:px-8 text-center font-semibold uppercase tracking-wide md:tracking-wider text-[#798060] shadow-[8px_8px_0_0_rgba(235,191,161,0.55)] transition hover:translate-y-[1px] cursor-pointer">
           Upload
         </label>
       </div>
@@ -285,6 +285,42 @@ if ($sharedPhotoId !== '') {
 
     const isViewerActive = () => !viewer.classList.contains('hidden');
 
+    const fetchPhotoDetails = async (photoId) => {
+      const response = await fetch(`./photo.php?photo=${encodeURIComponent(photoId)}`, { cache: 'no-store' });
+      if (!response.ok) {
+        return null;
+      }
+      return response.json();
+    };
+
+    const loadViewerFile = async (index) => {
+      const file = galleryFiles[index];
+      if (!file?.id) {
+        return null;
+      }
+      if (file.src && file.displaySrc) {
+        return file;
+      }
+      const details = await fetchPhotoDetails(file.id);
+      if (!details) {
+        return null;
+      }
+      file.src = details.src || file.src || '';
+      file.displaySrc = details.displaySrc || file.displaySrc || '';
+      file.thumbSrc = details.thumbSrc || file.thumbSrc || '';
+      file.kind = details.kind || file.kind || 'image';
+      file.name = details.name || file.name || '';
+      file.mimeType = details.mimeType || file.mimeType || '';
+      return file;
+    };
+
+    const ensureGalleryIndexLoaded = async (index) => {
+      while (index >= galleryFiles.length && galleryHasMore) {
+        await loadGalleryPage();
+      }
+      return index < galleryFiles.length;
+    };
+
     const scrollToSharedPhotoTile = async (photoId) => {
       if (!photoId) {
         return false;
@@ -324,32 +360,6 @@ if ($sharedPhotoId !== '') {
       return true;
     };
 
-    const openSharedPhotoDirectly = async () => {
-      if (sharedPhotoResolved || !pendingSharedPhotoId) {
-        return false;
-      }
-
-      try {
-        const response = await fetch(`./photo.php?photo=${encodeURIComponent(pendingSharedPhotoId)}`, { cache: 'no-store' });
-        if (!response.ok) {
-          return false;
-        }
-        const file = await response.json();
-        if (!file || !file.id) {
-          return false;
-        }
-        viewerOpenIndex = 0;
-        sharedPhotoResolved = true;
-        modalRestorePhotoId = pendingSharedPhotoId;
-        activeSharedPhotoId = pendingSharedPhotoId;
-        viewer.classList.remove('hidden');
-        renderViewer([file], 0, 0);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    };
-
     const appendGallery = (html) => {
       if (!html.trim()) {
         return;
@@ -364,8 +374,6 @@ if ($sharedPhotoId !== '') {
           name: button.dataset.name || '',
           kind: button.dataset.kind || 'image',
           mimeType: button.dataset.mimeType || '',
-          src: button.dataset.src || '',
-          displaySrc: button.dataset.displaySrc || '',
           thumbSrc: button.dataset.thumbSrc || '',
         });
       });
@@ -476,9 +484,7 @@ if ($sharedPhotoId !== '') {
         }
       });
       document.getElementById('viewerNext').addEventListener('click', () => {
-        if (viewerOpenIndex < files.length - 1) {
-          openViewer(viewerOpenIndex + 1, 1);
-        }
+        void openViewer(viewerOpenIndex + 1, 1);
       });
 
       const thumbImage = viewerList.querySelector('img:not([data-display-src])');
@@ -521,7 +527,12 @@ if ($sharedPhotoId !== '') {
       }
     };
 
-    const openViewer = (index, slideDirection = 0) => {
+    const openViewer = async (index, slideDirection = 0) => {
+      const hasTarget = await ensureGalleryIndexLoaded(index);
+      if (!hasTarget) {
+        return;
+      }
+
       const previousIndex = viewerOpenIndex;
       viewerOpenIndex = Math.max(0, Math.min(index, galleryFiles.length - 1));
       const nextPhotoId = galleryFiles[viewerOpenIndex]?.id || '';
@@ -532,7 +543,12 @@ if ($sharedPhotoId !== '') {
         slideDirection = viewerOpenIndex > previousIndex ? 1 : -1;
       }
 
-      renderViewer(galleryFiles, viewerOpenIndex, slideDirection);
+      const file = await loadViewerFile(viewerOpenIndex);
+      if (!file) {
+        return;
+      }
+
+      renderViewer([file], 0, slideDirection);
 
       // Only lock the scroll if the viewer isn't already open
       if (viewer.classList.contains('hidden')) {
@@ -565,6 +581,28 @@ if ($sharedPhotoId !== '') {
       activeSharedPhotoId = nextPhotoId;
       pendingSharedPhotoId = '';
       sharedPhotoResolved = true;
+    };
+
+    const openSharedPhotoDirectly = async () => {
+      if (sharedPhotoResolved || !pendingSharedPhotoId) {
+        return false;
+      }
+
+      try {
+        const file = await fetchPhotoDetails(pendingSharedPhotoId);
+        if (!file || !file.id) {
+          return false;
+        }
+        viewerOpenIndex = 0;
+        sharedPhotoResolved = true;
+        modalRestorePhotoId = pendingSharedPhotoId;
+        activeSharedPhotoId = pendingSharedPhotoId;
+        viewer.classList.remove('hidden');
+        renderViewer([file], 0, 0);
+        return true;
+      } catch (error) {
+        return false;
+      }
     };
 
     const closeViewerPanel = () => {
@@ -675,7 +713,7 @@ if ($sharedPhotoId !== '') {
       }
       event.preventDefault();
       event.stopPropagation();
-      openViewer(Number(button.dataset.index || 0));
+      void openViewer(Number(button.dataset.index || 0));
     });
 
     closeViewer.addEventListener('click', closeViewerPanel);
@@ -693,7 +731,7 @@ if ($sharedPhotoId !== '') {
       } else {
         const targetIndex = galleryFiles.findIndex((file) => file.id === sharedPhotoId);
         if (targetIndex !== -1 && viewerOpenIndex !== targetIndex) {
-          openViewer(targetIndex);
+          void openViewer(targetIndex);
         }
       }
     });
@@ -774,10 +812,10 @@ if ($sharedPhotoId !== '') {
       if (Math.abs(deltaX) < 40 || Math.abs(deltaY) > 80) {
         return;
       }
-      if (deltaX < 0 && viewerOpenIndex < galleryFiles.length - 1) {
-        openViewer(viewerOpenIndex + 1, 1);
+      if (deltaX < 0) {
+        void openViewer(viewerOpenIndex + 1, 1);
       } else if (deltaX > 0 && viewerOpenIndex > 0) {
-        openViewer(viewerOpenIndex - 1, -1);
+        void openViewer(viewerOpenIndex - 1, -1);
       }
     }, { passive: true });
 
@@ -796,10 +834,10 @@ if ($sharedPhotoId !== '') {
       }
       if (event.key === 'ArrowLeft' && viewerOpenIndex > 0) {
         event.preventDefault();
-        openViewer(viewerOpenIndex - 1, -1);
-      } else if (event.key === 'ArrowRight' && viewerOpenIndex < galleryFiles.length - 1) {
+        void openViewer(viewerOpenIndex - 1, -1);
+      } else if (event.key === 'ArrowRight') {
         event.preventDefault();
-        openViewer(viewerOpenIndex + 1, 1);
+        void openViewer(viewerOpenIndex + 1, 1);
       } else if (event.key === 'Escape') {
         event.preventDefault();
         closeViewerPanel();
@@ -852,7 +890,7 @@ if ($sharedPhotoId !== '') {
     updateHeroParallax();
     loadGalleryPage(true);
     if (pendingSharedPhotoId) {
-      openSharedPhotoDirectly();
+      void openSharedPhotoDirectly();
     }
   </script>
 </main>

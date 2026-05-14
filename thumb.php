@@ -4,6 +4,7 @@ guardRequest(['GET', 'HEAD']);
 applySecurityHeaders();
 require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/media_helpers.php';
 loadEnvFile('/var/www/wedding-upload/.env');
 
 use Aws\S3\S3Client;
@@ -91,9 +92,9 @@ if (!$row) {
 
 $s3 = getS3Client();
 $bucket = getBucketName();
-$displayObjectKey = str_replace('/originals/', '/display/', $row['object_key']);
-$thumbObjectKey = $row['thumb_object_key'] ?: $displayObjectKey;
-$target = $variant === 'display' ? $displayObjectKey : ($row['thumb_object_key'] ? $thumbObjectKey : $displayObjectKey);
+$displayObjectKey = getDisplayObjectKey($row['object_key']);
+$thumbObjectKey = getThumbObjectKey($row);
+$target = $variant === 'display' ? $displayObjectKey : $thumbObjectKey;
 $url = presignObjectUrl($s3, $bucket, $target, 60);
 
 header('Location: ' . $url, true, 302);

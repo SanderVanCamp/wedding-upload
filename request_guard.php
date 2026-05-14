@@ -10,13 +10,20 @@ function respondWithStatus(int $statusCode, string $message): void
 
 function loadAllowedHosts(): array
 {
+  static $cachedHosts = null;
+  if (is_array($cachedHosts)) {
+    return $cachedHosts;
+  }
+
   $raw = getenv('APP_ALLOWED_HOSTS');
   if ($raw === false || trim($raw) === '') {
     $fallbackHost = $_SERVER['HTTP_HOST'] ?? '';
-    return $fallbackHost !== '' ? [$fallbackHost] : [];
+    $cachedHosts = $fallbackHost !== '' ? [$fallbackHost] : [];
+    return $cachedHosts;
   }
 
-  return array_values(array_filter(array_map(static fn ($host) => strtolower(trim($host)), explode(',', $raw))));
+  $cachedHosts = array_values(array_filter(array_map(static fn ($host) => strtolower(trim($host)), explode(',', $raw))));
+  return $cachedHosts;
 }
 
 function normalizeHost(string $host): string
@@ -75,6 +82,12 @@ function requireJsonResponse(): void
 
 function applySecurityHeaders(): void
 {
+  static $headersApplied = false;
+  if ($headersApplied) {
+    return;
+  }
+  $headersApplied = true;
+
   header('X-Content-Type-Options: nosniff');
   header('Referrer-Policy: same-origin');
   header('X-Frame-Options: DENY');
