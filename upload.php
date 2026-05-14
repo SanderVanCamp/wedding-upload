@@ -143,6 +143,61 @@ function generateVideoThumbnailJpeg(string $sourcePath, int $maxSize = 600, int 
   return $jpeg === false ? null : $jpeg;
 }
 
+function rotateImageByExifOrientation($image, int $orientation)
+{
+  if (!$image) {
+    return $image;
+  }
+
+  return match ($orientation) {
+    3 => imagerotate($image, 180, 0),
+    6 => imagerotate($image, -90, 0),
+    8 => imagerotate($image, 90, 0),
+    default => $image,
+  };
+}
+
+function flipImageForExifOrientation($image, int $orientation)
+{
+  if (!$image || !function_exists('imageflip')) {
+    return $image;
+  }
+
+  if ($orientation === 2) {
+    imageflip($image, IMG_FLIP_HORIZONTAL);
+  } elseif ($orientation === 4) {
+    imageflip($image, IMG_FLIP_VERTICAL);
+  } elseif ($orientation === 5 || $orientation === 7) {
+    imageflip($image, IMG_FLIP_HORIZONTAL);
+  }
+
+  return $image;
+}
+
+function applyExifOrientation($sourcePath, $image)
+{
+  if (!$image || !function_exists('exif_read_data')) {
+    return $image;
+  }
+
+  $info = @exif_read_data($sourcePath);
+  $orientation = (int) ($info['Orientation'] ?? 1);
+  if ($orientation <= 1) {
+    return $image;
+  }
+
+  if (in_array($orientation, [2, 4, 5, 7], true) && function_exists('imageflip')) {
+    $image = flipImageForExifOrientation($image, $orientation);
+  }
+
+  if (in_array($orientation, [5, 6, 7, 8], true)) {
+    $rotated = rotateImageByExifOrientation($image, $orientation);
+    return $rotated ?: $image;
+  }
+
+  return $image;
+}
+
 function decodeImageSource(string $sourcePath)
 {
   $info = @getimagesize($sourcePath);
@@ -164,6 +219,7 @@ function cleanupImageResource($image): void
     default => false,
   };
 
+  $source = applyExifOrientation($sourcePath, $source);
   return [$source ?: null, $info[2]];
 }
 
