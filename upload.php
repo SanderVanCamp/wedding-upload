@@ -93,7 +93,7 @@ function generateResizedJpegFromImage($source, int $sourceType, int $maxSize, in
   return $jpeg === false ? null : $jpeg;
 }
 
-function generateCroppedSquareJpegFromImage($source, int $sourceType, int $size, int $quality): ?string
+function generateAdaptiveThumbJpegFromImage($source, int $sourceType, int $shortEdge, int $maxLongEdge, int $quality): ?string
 {
   if (!$source) {
     return null;
@@ -105,11 +105,16 @@ function generateCroppedSquareJpegFromImage($source, int $sourceType, int $size,
     return null;
   }
 
-  $cropSize = min($width, $height);
-  $srcX = (int) max(0, round(($width - $cropSize) / 2));
-  $srcY = (int) max(0, round(($height - $cropSize) / 2));
+  $aspectRatio = $width / $height;
+  if ($aspectRatio >= 1) {
+    $targetHeight = $shortEdge;
+    $targetWidth = min($maxLongEdge, max($shortEdge, (int) round($shortEdge * $aspectRatio)));
+  } else {
+    $targetWidth = $shortEdge;
+    $targetHeight = min($maxLongEdge, max($shortEdge, (int) round($shortEdge / $aspectRatio)));
+  }
 
-  $thumb = imagecreatetruecolor($size, $size);
+  $thumb = imagecreatetruecolor($targetWidth, $targetHeight);
   $white = imagecolorallocate($thumb, 255, 255, 255);
   imagefill($thumb, 0, 0, $white);
 
@@ -120,7 +125,7 @@ function generateCroppedSquareJpegFromImage($source, int $sourceType, int $size,
     imagefill($thumb, 0, 0, $transparent);
   }
 
-  imagecopyresampled($thumb, $source, 0, 0, $srcX, $srcY, $size, $size, $cropSize, $cropSize);
+  imagecopyresampled($thumb, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
 
   ob_start();
   imagejpeg($thumb, null, $quality);
@@ -519,13 +524,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'ACL' => 'private',
         ]);
 
-        $thumbBody = $sourceImage ? generateCroppedSquareJpegFromImage($sourceImage, $sourceType, 300, 72) : null;
+        $thumbBody = $sourceImage ? generateAdaptiveThumbJpegFromImage($sourceImage, $sourceType, 300, 600, 72) : null;
         if ($thumbBody === null) {
           $thumbBody = $displayBody;
         }
         cleanupImageResource($sourceImage);
       } else {
-        $thumbBody = $sourceImage ? generateCroppedSquareJpegFromImage($sourceImage, $sourceType, 300, 72) : null;
+        $thumbBody = $sourceImage ? generateAdaptiveThumbJpegFromImage($sourceImage, $sourceType, 300, 600, 72) : null;
         cleanupImageResource($sourceImage);
       }
 
