@@ -9,6 +9,7 @@ loadEnvFile('/var/www/wedding-upload/.env');
 use Aws\S3\S3Client;
 
 $photoId = trim((string) ($_GET['photo'] ?? ''));
+$variant = trim((string) ($_GET['variant'] ?? 'thumb'));
 if ($photoId === '' || !preg_match('/^[a-f0-9]{40}$/', $photoId)) {
   header('HTTP/1.1 400 Bad Request');
   exit('Invalid photo id');
@@ -80,7 +81,7 @@ $s3 = getS3Client();
 $bucket = getBucketName();
 $displayObjectKey = str_replace('/originals/', '/display/', $row['object_key']);
 $thumbObjectKey = $row['thumb_object_key'] ?: $displayObjectKey;
-$target = $row['thumb_object_key'] ? $thumbObjectKey : $displayObjectKey;
+$target = $variant === 'display' ? $displayObjectKey : ($row['thumb_object_key'] ? $thumbObjectKey : $displayObjectKey);
 $url = presignObjectUrl($s3, $bucket, $target, 60);
 
 header('Location: ' . $url, true, 302);

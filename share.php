@@ -94,12 +94,9 @@ if ($photoId !== '' && preg_match('/^[a-f0-9]{40}$/', $photoId)) {
       $s3 = getS3Client();
       $bucket = getBucketName();
       $displayObjectKey = str_replace('/originals/', '/display/', $row['object_key']);
-      $thumbObjectKey = $row['thumb_object_key'] ?: $displayObjectKey;
-      $shareImage = $row['thumb_object_key']
-        ? presignObjectUrl($s3, $bucket, $thumbObjectKey, 60)
-        : presignObjectUrl($s3, $bucket, $displayObjectKey, 60);
-      $imageWidth = (int) (($row['thumb_width'] ?? null) ?: $fallbackImageWidth);
-      $imageHeight = (int) (($row['thumb_height'] ?? null) ?: $fallbackImageHeight);
+      $shareImage = presignObjectUrl($s3, $bucket, $displayObjectKey, 60);
+      $imageWidth = $fallbackImageWidth;
+      $imageHeight = $fallbackImageHeight;
       $title = $row['file_name'] ?: $fallbackTitle;
       $description = $row['kind'] === 'video'
         ? 'Bekijk deze video uit ons trouwalbum.'

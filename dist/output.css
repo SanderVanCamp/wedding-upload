@@ -793,6 +793,9 @@
   .stroke-current {
     stroke: currentcolor;
   }
+  .stroke-2 {
+    stroke-width: 2;
+  }
   .stroke-\[2\] {
     stroke-width: 2;
   }

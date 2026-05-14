@@ -53,7 +53,7 @@ if ($sharedPhotoId !== '') {
   <meta property="og:title" content="Sander & Silvie">
   <meta property="og:description"
         content="Heb je foto's genomen op ons trouwfeest? Deel ze hier met ons, zodat we samen nog eens kunnen nagenieten van die mooie dag.">
-  <meta property="og:image" content="<?php echo htmlspecialchars($baseUrl . '/' . ($sharedPhotoId ? 'thumb.php?photo=' . rawurlencode($sharedPhotoId) : 'share/share.jpg'), ENT_QUOTES, 'UTF-8'); ?>">
+  <meta property="og:image" content="<?php echo htmlspecialchars($baseUrl . '/' . ($sharedPhotoId ? 'thumb.php?photo=' . rawurlencode($sharedPhotoId) . '&variant=display' : 'share/share.jpg'), ENT_QUOTES, 'UTF-8'); ?>">
   <meta property="og:image:width" content="<?php echo (int) $ogImageWidth; ?>">
   <meta property="og:image:height" content="<?php echo (int) $ogImageHeight; ?>">
 
@@ -111,10 +111,19 @@ if ($sharedPhotoId !== '') {
           <div class="text-sm font-semibold text-white">Gallery</div>
           <div id="viewerCount" class="text-xs text-white/70"></div>
         </div>
-        <button id="closeViewer" type="button"
-                class="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/18">
-          Close
-        </button>
+        <div class="flex items-center gap-2">
+          <a id="downloadViewerMedia" href="#" target="_blank" download
+             class="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/18">
+            Download
+          </a>
+          <button id="closeViewer" type="button"
+                  class="cursor-pointer inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/18"
+                  aria-label="Close viewer">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="h-5 w-5 stroke-current stroke-2 fill-none">
+              <path d="M6 6l12 12M18 6 6 18"></path>
+            </svg>
+          </button>
+        </div>
       </div>
       <div id="viewerList" class="relative flex-1 overflow-hidden"></div>
     </div>
@@ -133,6 +142,7 @@ if ($sharedPhotoId !== '') {
     const viewer = document.getElementById('viewer');
     const viewerList = document.getElementById('viewerList');
     const viewerCount = document.getElementById('viewerCount');
+    const downloadViewerMedia = document.getElementById('downloadViewerMedia');
     const closeViewer = document.getElementById('closeViewer');
     const heroHeader = document.getElementById('heroHeader');
     const heroParallax = document.getElementById('heroParallax');
@@ -417,7 +427,18 @@ if ($sharedPhotoId !== '') {
       const file = files[startIndex];
       if (!file) {
         viewerList.innerHTML = '';
+        if (downloadViewerMedia) {
+          downloadViewerMedia.removeAttribute('href');
+          downloadViewerMedia.removeAttribute('download');
+          downloadViewerMedia.setAttribute('aria-disabled', 'true');
+        }
         return;
+      }
+
+      if (downloadViewerMedia) {
+        downloadViewerMedia.href = file.src || '#';
+        downloadViewerMedia.download = file.name || 'download';
+        downloadViewerMedia.setAttribute('aria-disabled', 'false');
       }
 
       viewerList.innerHTML = `
@@ -542,6 +563,11 @@ if ($sharedPhotoId !== '') {
       });
 
       viewer.classList.add('hidden');
+      if (downloadViewerMedia) {
+        downloadViewerMedia.removeAttribute('href');
+        downloadViewerMedia.removeAttribute('download');
+        downloadViewerMedia.setAttribute('aria-disabled', 'true');
+      }
       const restorePhotoId = modalRestorePhotoId;
 
       // 1. Temporarily disable smooth scrolling to prevent "sliding" back
