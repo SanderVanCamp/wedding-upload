@@ -118,18 +118,14 @@ if ($sharedPhotoId !== '') {
        class="fixed inset-0 z-50 hidden bg-[#140f0b]/92 backdrop-blur-md"
        style="touch-action: none; overscroll-behavior: none; position: fixed; height: 100%; width: 100%; top: 0; left: 0;">
     <div class="flex h-full flex-col">
-      <div class="flex items-center justify-between px-4 py-4 sm:px-6">
-        <div class="min-w-0">
-          <div class="text-sm font-semibold text-white">Gallery</div>
-          <div id="viewerCount" class="text-xs text-white/70"></div>
-        </div>
-        <div class="flex items-center gap-2">
+      <div class="flex items-center px-4 py-4 sm:px-6">
+        <div class="ml-auto flex items-center gap-2">
           <a id="downloadViewerMedia" href="#" target="_blank" download
              class="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/18">
             Download
           </a>
           <button id="closeViewer" type="button"
-                  class="cursor-pointer inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/18"
+                  class="inline-flex cursor-pointer h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/18"
                   aria-label="Close viewer">
             <svg viewBox="0 0 24 24" aria-hidden="true"
                  class="h-5 w-5 stroke-current stroke-2 fill-none">
@@ -154,7 +150,6 @@ if ($sharedPhotoId !== '') {
     const gallerySentinel = document.getElementById('gallerySentinel');
     const viewer = document.getElementById('viewer');
     const viewerList = document.getElementById('viewerList');
-    const viewerCount = document.getElementById('viewerCount');
     const downloadViewerMedia = document.getElementById('downloadViewerMedia');
     const closeViewer = document.getElementById('closeViewer');
     const heroHeader = document.getElementById('heroHeader');
@@ -444,7 +439,6 @@ if ($sharedPhotoId !== '') {
     };
 
     const renderViewer = (files, startIndex = 0, slideDirection = 0) => {
-      viewerCount.textContent = `${files.length} item${files.length === 1 ? '' : 's'}`;
       const file = files[startIndex];
       if (!file) {
         viewerList.innerHTML = '';
