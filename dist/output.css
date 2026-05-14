@@ -778,6 +778,9 @@
   .bg-no-repeat {
     background-repeat: no-repeat;
   }
+  .fill-current {
+    fill: currentcolor;
+  }
   .fill-none {
     fill: none;
   }

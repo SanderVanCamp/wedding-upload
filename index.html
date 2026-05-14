@@ -70,18 +70,25 @@
     </div>
   </div>
 
-  <div id="viewer" class="fixed inset-0 z-50 hidden bg-[#140f0b]/92 backdrop-blur-md touch-none overscroll-none"
-       style="touch-action: none; overscroll-behavior: none;">
+  <div id="viewer"
+       class="fixed inset-0 z-50 hidden bg-[#140f0b]/92 backdrop-blur-md"
+       style="touch-action: none; overscroll-behavior: none; position: fixed; height: 100%; width: 100%; top: 0; left: 0;">
     <div class="flex h-full flex-col">
       <div class="flex items-center justify-between px-4 py-4 sm:px-6">
         <div class="min-w-0">
           <div class="text-sm font-semibold text-white">Gallery</div>
           <div id="viewerCount" class="text-xs text-white/70"></div>
         </div>
-        <button id="closeViewer" type="button"
-                class="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/18">
-          Close
-        </button>
+        <div class="flex items-center gap-2">
+          <button id="shareViewer" type="button" aria-label="Share photo"
+                  class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/18">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="h-5 w-5 fill-current"><path d="M14 9l-1.41 1.41L16.17 14H9v2h7.17l-3.58 3.59L14 21l6-6-6-6ZM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5Z"/></svg>
+          </button>
+          <button id="closeViewer" type="button"
+                  class="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/18">
+            Close
+          </button>
+        </div>
       </div>
       <div id="viewerList" class="relative flex-1 overflow-hidden"></div>
     </div>
@@ -100,6 +107,7 @@
     const viewer = document.getElementById('viewer');
     const viewerList = document.getElementById('viewerList');
     const viewerCount = document.getElementById('viewerCount');
+    const shareViewer = document.getElementById('shareViewer');
     const closeViewer = document.getElementById('closeViewer');
 
     let uploadInProgress = false;
@@ -435,6 +443,16 @@
       sharedPhotoResolved = true;
     };
 
+    const getShareUrlForCurrentPhoto = () => {
+      const photoId = galleryFiles[viewerOpenIndex]?.id || '';
+      if (!photoId) {
+        return '';
+      }
+      const url = new URL('./share.php', window.location.href);
+      url.searchParams.set('photo', photoId);
+      return url.toString();
+    };
+
     const closeViewerPanel = () => {
       if (viewer.classList.contains('hidden')) return;
 
@@ -526,6 +544,23 @@
     });
 
     closeViewer.addEventListener('click', closeViewerPanel);
+    shareViewer.addEventListener('click', async () => {
+      const shareUrl = getShareUrlForCurrentPhoto();
+      if (!shareUrl) return;
+      if (navigator.share) {
+        try {
+          await navigator.share({ url: shareUrl, title: document.title });
+          return;
+        } catch (error) {
+          // fall through to clipboard
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+      } catch (error) {
+        window.prompt('Copy this link', shareUrl);
+      }
+    });
     viewer.addEventListener('click', (event) => {
       if (event.target === viewer) {
         closeViewerPanel();
@@ -564,24 +599,35 @@
     }, { passive: true });
 
     viewer.addEventListener('touchmove', (event) => {
+      // This is the key: prevent the browser from handling the swipe
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+
       if (event.touches.length >= 2) {
         const [first, second] = event.touches;
         const distance = Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
         if (!viewerGesture || viewerGesture.mode !== 'pinch') {
-          viewerGesture = { mode: 'pinch', startDistance: distance, startScale: viewerZoomScale, startX: viewerZoomTranslateX, startY: viewerZoomTranslateY };
+          viewerGesture = {
+            mode: 'pinch',
+            startDistance: distance,
+            startScale: viewerZoomScale,
+            startX: viewerZoomTranslateX,
+            startY: viewerZoomTranslateY,
+          };
           return;
         }
+
         const nextScale = viewerGesture.startScale * (distance / viewerGesture.startDistance);
         updateViewerZoom(nextScale, viewerZoomTranslateX, viewerZoomTranslateY);
-        event.preventDefault();
         return;
       }
+
       if (viewerZoomScale > 1 && viewerGesture && viewerGesture.mode === 'pan') {
         const touch = event.touches[0];
         const deltaX = touch.clientX - viewerGesture.startClientX;
         const deltaY = touch.clientY - viewerGesture.startClientY;
         updateViewerZoom(viewerGesture.startScale, viewerGesture.startX + deltaX, viewerGesture.startY + deltaY);
-        event.preventDefault();
       }
     }, { passive: false });
 
