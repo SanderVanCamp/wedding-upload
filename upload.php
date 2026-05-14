@@ -93,6 +93,42 @@ function generateResizedJpegFromImage($source, int $sourceType, int $maxSize, in
   return $jpeg === false ? null : $jpeg;
 }
 
+function generateCroppedSquareJpegFromImage($source, int $sourceType, int $size, int $quality): ?string
+{
+  if (!$source) {
+    return null;
+  }
+
+  $width = imagesx($source);
+  $height = imagesy($source);
+  if ($width <= 0 || $height <= 0) {
+    return null;
+  }
+
+  $cropSize = min($width, $height);
+  $srcX = (int) max(0, round(($width - $cropSize) / 2));
+  $srcY = (int) max(0, round(($height - $cropSize) / 2));
+
+  $thumb = imagecreatetruecolor($size, $size);
+  $white = imagecolorallocate($thumb, 255, 255, 255);
+  imagefill($thumb, 0, 0, $white);
+
+  if ($sourceType === IMAGETYPE_PNG || $sourceType === IMAGETYPE_WEBP) {
+    imagealphablending($thumb, false);
+    imagesavealpha($thumb, true);
+    $transparent = imagecolorallocatealpha($thumb, 0, 0, 0, 127);
+    imagefill($thumb, 0, 0, $transparent);
+  }
+
+  imagecopyresampled($thumb, $source, 0, 0, $srcX, $srcY, $size, $size, $cropSize, $cropSize);
+
+  ob_start();
+  imagejpeg($thumb, null, $quality);
+  $jpeg = ob_get_clean();
+  imagedestroy($thumb);
+  return $jpeg === false ? null : $jpeg;
+}
+
 function generateImageThumbnail(string $sourcePath): ?string
 {
   $jpeg = generateResizedJpeg($sourcePath, 300, 72);
@@ -483,13 +519,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'ACL' => 'private',
         ]);
 
-        $thumbBody = $sourceImage ? generateResizedJpegFromImage($sourceImage, $sourceType, 300, 72) : null;
+        $thumbBody = $sourceImage ? generateCroppedSquareJpegFromImage($sourceImage, $sourceType, 300, 72) : null;
         if ($thumbBody === null) {
           $thumbBody = $displayBody;
         }
         cleanupImageResource($sourceImage);
       } else {
-        $thumbBody = $sourceImage ? generateResizedJpegFromImage($sourceImage, $sourceType, 300, 72) : null;
+        $thumbBody = $sourceImage ? generateCroppedSquareJpegFromImage($sourceImage, $sourceType, 300, 72) : null;
         cleanupImageResource($sourceImage);
       }
 
