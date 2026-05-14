@@ -110,6 +110,36 @@ function generateTinyPreviewDataUri(string $sourcePath): ?string
   return 'data:image/jpeg;base64,' . base64_encode($jpeg);
 }
 
+function generateVideoThumbnailJpeg(string $sourcePath, int $maxSize = 600, int $quality = 72): ?string
+{
+  $ffmpeg = trim((string) shell_exec('command -v ffmpeg 2>/dev/null'));
+  if ($ffmpeg === '') {
+    return null;
+  }
+
+  $outputPath = tempnam(sys_get_temp_dir(), 'video-thumb-');
+  if ($outputPath === false) {
+    return null;
+  }
+  $jpegPath = $outputPath . '.jpg';
+  @rename($outputPath, $jpegPath);
+
+  $escapedFfmpeg = escapeshellarg($ffmpeg);
+  $escapedInput = escapeshellarg($sourcePath);
+  $escapedOutput = escapeshellarg($jpegPath);
+  $filter = "scale='min($maxSize\\,iw)':-2";
+  $command = $escapedFfmpeg . ' -y -i ' . $escapedInput . ' -ss 1 -frames:v 1 -vf ' . escapeshellarg($filter) . ' -q:v ' . (int) $quality . ' ' . $escapedOutput . ' 2>/dev/null';
+
+  $output = [];
+  $exitCode = 0;
+  exec($command, $output, $exitCode);
+
+  $jpeg = ($exitCode === 0 && file_exists($jpegPath) && filesize($jpegPath) > 0) ? file_get_contents($jpegPath) : false;
+  @unlink($jpegPath);
+
+  return $jpeg === false ? null : $jpeg;
+}
+
 function decodeImageSource(string $sourcePath)
 {
   $info = @getimagesize($sourcePath);
@@ -303,18 +333,8 @@ function getBucketName(): string
 
 // --- STEP 2: Handle Finalization (POST) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $isChunked = isset($_SERVER['HTTP_UPLOAD_NAME']);
-  $fileName = $_SERVER['HTTP_UPLOAD_FILENAME'] ?? ($_FILES['file']['name'] ?? 'wedding-upload-' . time());
-
-  if ($isChunked) {
-    $tempDir = __DIR__ . '/tmp/';
-    if (!is_dir($tempDir)) {
-      mkdir($tempDir, 0777, true);
-    }
-    $filePath = $tempDir . $_SERVER['HTTP_UPLOAD_NAME'];
-  } else {
-    $filePath = $_FILES['file']['tmp_name'] ?? '';
-  }
+  $fileName = $_FILES['file']['name'] ?? ($_SERVER['HTTP_UPLOAD_FILENAME'] ?? ('wedding-upload-' . time()));
+  $filePath = $_FILES['file']['tmp_name'] ?? '';
 
   if (empty($filePath) || !file_exists($filePath)) {
     header('HTTP/1.1 400 Bad Request');
@@ -388,6 +408,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         cleanupImageResource($sourceImage);
       }
 
+      if ($thumbBody !== null) {
+        $thumbObjectKey = 'uploads/thumbs/' . $localKey . '.jpg';
+        $s3->putObject([
+          'Bucket' => $bucket,
+          'Key' => $thumbObjectKey,
+          'Body' => $thumbBody,
+          'ContentType' => 'image/jpeg',
+          'CacheControl' => 'public, max-age=31536000, immutable',
+          'ACL' => 'private',
+        ]);
+      }
+    } else {
+      $thumbBody = generateVideoThumbnailJpeg($filePath, 300, 72);
       if ($thumbBody !== null) {
         $thumbObjectKey = 'uploads/thumbs/' . $localKey . '.jpg';
         $s3->putObject([

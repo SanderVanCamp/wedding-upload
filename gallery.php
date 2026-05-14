@@ -106,10 +106,12 @@ foreach ($files as $row) {
   echo '<button type="button" data-index="" data-id="' . $id . '" data-name="' . $name . '" data-kind="' . $kind . '" data-mime-type="' . $mimeType . '" data-src="' . $src . '" data-display-src="' . $displaySrc . '" data-thumb-src="' . $thumbSrc . '" class="block w-full text-left">';
   if ($row['kind'] === 'video') {
     echo '<div class="relative aspect-[1/1] w-full overflow-hidden bg-black">';
-    echo '<div class="absolute inset-0 bg-[#120f0d]"></div>';
+    echo '<img src="' . $thumbSrc . '" alt="' . $name . '" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low">';
+    echo '<div class="absolute inset-0 bg-black/12"></div>';
     echo '<div class="absolute inset-0 flex items-center justify-center text-white/90">';
-    echo '<span class="rounded-full bg-black/55 px-3 py-1 text-xs font-medium tracking-wide backdrop-blur-sm">Video</span>';
-    echo '</div></div>';
+    echo '<div class="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm">';
+    echo '<svg viewBox="0 0 24 24" aria-hidden="true" class="h-5 w-5 fill-white"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>';
+    echo '</div></div></div>';
   } else {
     echo '<img src="' . $previewSrc . '" data-thumb-src="' . $thumbSrc . '" alt="' . $name . '" class="aspect-[1/1] w-full object-cover" loading="lazy" decoding="async" fetchpriority="low">';
   }

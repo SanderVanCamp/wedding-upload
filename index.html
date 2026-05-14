@@ -12,42 +12,39 @@
   />
   <link rel="shortcut icon" href="./favicon.ico"/>
 
-
   <meta name="robots" content="noindex, nofollow">
-
   <meta name="color-scheme" content="light">
 
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://vooraltijdmijnliefje.be/suite">
   <meta property="og:title" content="Sander & Silvie">
   <meta property="og:description"
-        content="Na 10 jaar samen vinden wij het wel tijd voor een officiële 'ja'. Kom jij met ons vieren? 💍✨">
+        content="Heb je foto's genomen op ons trouwfeest? Deel ze hier met ons, zodat we samen nog eens kunnen nagenieten van die mooie dag.">
   <meta property="og:image" content="/share/share.jpg">
 
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
 
-  <link href="/dist/output.css?v=1" rel="stylesheet">
-
+  <link href="/dist/output.css?v=4" rel="stylesheet">
 </head>
-<body class="bg-[#f4efe9] font-body text-[#1f1a17]">
-<main class="relative min-h-screen overflow-hidden  sm:px-6 lg:px-8">
+<body class="bg-[#ecd0b5] font-body text-ink">
+<main class="relative min-h-screen overflow-hidden sm:px-6 lg:px-8">
 
   <div class="mx-auto max-w-7xl">
-    <header
-      class="relative h-[50vh] bg-[url(/assets/img/silvie_sander.jpg)] bg-cover bg-center bg-blend-overlay bg-black/30">
-      <div class="absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
+    <header class="relative flex h-[50vh] items-center justify-center overflow-hidden bg-[#c77452] px-4 py-8 font-body text-[#f2d8c5] sm:py-10">
+      <div class="flex w-full flex-col items-center gap-12 sm:gap-6">
+        <img src="/hero-names.svg" alt="Sander & Silvie" class="h-auto max-h-[28vh] w-full max-w-[880px] object-contain sm:max-h-[30vh]" loading="eager" decoding="async">
         <input id="fileInput" type="file" accept="image/*,video/*" multiple class="hidden">
         <label for="fileInput"
-               class="inline-flex cursor-pointer items-center justify-center rounded-full bg-white/90 px-4 py-2 text-sm font-medium text-[#1f1a17] shadow-sm backdrop-blur transition hover:bg-white">
-          Upload files
+               class="whitespace-nowrap inline-flex min-h-[40px] items-center justify-center rounded-xl bg-[#f3d7c2] px-4 sm:px-8 text-center font-semibold uppercase tracking-wide md:tracking-wider text-[#798060] shadow-[8px_8px_0_0_rgba(235,191,161,0.55)] transition hover:translate-y-[1px] cursor-pointer">
+          Upload
         </label>
       </div>
     </header>
 
-    <div class="grid gap-5 p-0.5">
+    <div class="grid gap-5 p-0.5 -mx-0.5">
       <div id="galleryState" class="hidden"></div>
-      <div id="galleryGrid" class="grid grid-cols-3 gap-0.5 sm:grid-cols-4 xl:grid-cols-6"></div>
+      <div id="galleryGrid" class="grid grid-cols-3 gap-0.5 sm:grid-cols-5 xl:grid-cols-6"></div>
       <div id="gallerySentinel" class="h-px"></div>
     </div>
   </div>
@@ -61,12 +58,20 @@
           <div id="uploadProgressBar"
                class="h-full w-0 rounded-full bg-[#1f1a17] transition-[width] duration-200"></div>
         </div>
-        <div id="uploadStatus" class="shrink-0 text-sm text-[#6f6258]">No files uploading.</div>
+        <div id="uploadStatus" class="shrink-0 flex items-center gap-2 text-sm text-[#6f6258]">
+          <svg id="uploadSpinner" viewBox="0 0 24 24" aria-hidden="true"
+               class="hidden h-4 w-4 animate-spin fill-none stroke-current stroke-[2]">
+            <circle cx="12" cy="12" r="8" class="opacity-25"></circle>
+            <path d="M20 12a8 8 0 0 0-8-8"></path>
+          </svg>
+          <span id="uploadStatusText">No files uploading.</span>
+        </div>
       </div>
     </div>
   </div>
 
-  <div id="viewer" class="fixed inset-0 z-50 hidden bg-[#140f0b]/92 backdrop-blur-md touch-none overscroll-none" style="touch-action: none; overscroll-behavior: none;">
+  <div id="viewer" class="fixed inset-0 z-50 hidden bg-[#140f0b]/92 backdrop-blur-md touch-none overscroll-none"
+       style="touch-action: none; overscroll-behavior: none;">
     <div class="flex h-full flex-col">
       <div class="flex items-center justify-between px-4 py-4 sm:px-6">
         <div class="min-w-0">
@@ -87,6 +92,8 @@
     const uploadProgressWrap = document.getElementById('uploadProgressWrap');
     const uploadProgressBar = document.getElementById('uploadProgressBar');
     const uploadStatus = document.getElementById('uploadStatus');
+    const uploadSpinner = document.getElementById('uploadSpinner');
+    const uploadStatusText = document.getElementById('uploadStatusText');
     const galleryState = document.getElementById('galleryState');
     const galleryGrid = document.getElementById('galleryGrid');
     const gallerySentinel = document.getElementById('gallerySentinel');
@@ -94,6 +101,7 @@
     const viewerList = document.getElementById('viewerList');
     const viewerCount = document.getElementById('viewerCount');
     const closeViewer = document.getElementById('closeViewer');
+
     let uploadInProgress = false;
     let uploadSuccessTimer = null;
     let galleryFiles = [];
@@ -110,6 +118,9 @@
     let viewerLastTapAt = 0;
     let viewerLastTapTarget = '';
 
+    // NEW: Variable to store scroll position
+    let scrollPosition = 0;
+
     const getSharedPhotoId = () => {
       const match = window.location.hash.match(/photo=([^&]+)/);
       return match ? decodeURIComponent(match[1]) : '';
@@ -119,10 +130,12 @@
       if (photoId) {
         const hash = `photo=${encodeURIComponent(photoId)}`;
         if (window.location.hash !== `#${hash}`) {
-          history.replaceState(null, '', `#${hash}`);
+          // Use pushState so back button works
+          history.pushState({ photoId }, '', `#${hash}`);
         }
       } else if (window.location.hash.startsWith('#photo=')) {
-        history.replaceState(null, '', window.location.pathname + window.location.search);
+        // If we are clearing, we usually want to go back in history if possible
+        // but closeViewerPanel handles manual clearing via replaceState
       }
     };
 
@@ -141,12 +154,14 @@
         uploadProgressBar.style.width = '0%';
         uploadProgressBar.className = 'h-full w-0 rounded-full bg-[#1f1a17] transition-[width] duration-200';
         uploadStatus.classList.add('hidden');
+        uploadSpinner.classList.add('hidden');
+        uploadStatusText.textContent = 'No files uploading.';
         return;
       }
-
       uploadProgressWrap.classList.remove('hidden');
       uploadStatus.classList.remove('hidden');
-      uploadStatus.textContent = `Uploading ${current} of ${total} files...`;
+      uploadSpinner.classList.remove('hidden');
+      uploadStatusText.textContent = `Uploading ${current} van ${total}`;
       uploadProgressBar.className = 'h-full rounded-full bg-[#1f1a17] transition-[width] duration-200';
       const percent = Math.round((current / total) * 100);
       uploadProgressBar.style.width = `${percent}%`;
@@ -156,7 +171,8 @@
       window.clearTimeout(uploadSuccessTimer);
       uploadProgressWrap.classList.remove('hidden');
       uploadStatus.classList.remove('hidden');
-      uploadStatus.textContent = `${count} file${count === 1 ? '' : 's'} uploaded`;
+      uploadSpinner.classList.add('hidden');
+      uploadStatusText.textContent = `${count} bestand${count === 1 ? '' : 'en'} geüpload`;
       uploadProgressBar.className = 'h-full rounded-full bg-emerald-500 transition-[width] duration-200';
       uploadProgressBar.style.width = '100%';
       uploadSuccessTimer = window.setTimeout(() => {
@@ -164,6 +180,7 @@
         uploadProgressBar.style.width = '0%';
         uploadProgressBar.className = 'h-full w-0 rounded-full bg-[#1f1a17] transition-[width] duration-200';
         uploadStatus.classList.add('hidden');
+        uploadSpinner.classList.add('hidden');
       }, 2400);
     };
 
@@ -181,7 +198,6 @@
       if (!zoomTarget) {
         return;
       }
-
       zoomTarget.style.transform = `translate(${viewerZoomTranslateX}px, ${viewerZoomTranslateY}px) scale(${viewerZoomScale})`;
     };
 
@@ -207,12 +223,10 @@
       if (sharedPhotoResolved || !pendingSharedPhotoId) {
         return false;
       }
-
       const targetIndex = galleryFiles.findIndex((file) => file.id === pendingSharedPhotoId);
       if (targetIndex === -1) {
         return false;
       }
-
       sharedPhotoResolved = true;
       openViewer(targetIndex);
       return true;
@@ -222,7 +236,6 @@
       if (!html.trim()) {
         return;
       }
-
       const beforeCount = galleryGrid.querySelectorAll('button[data-index]').length;
       galleryGrid.insertAdjacentHTML('beforeend', html);
       const buttons = Array.from(galleryGrid.querySelectorAll('button[data-index]')).slice(beforeCount);
@@ -238,7 +251,6 @@
           thumbSrc: button.dataset.thumbSrc || '',
         });
       });
-
       observeGalleryImages();
       tryOpenSharedPhoto();
     };
@@ -248,7 +260,6 @@
       if (!thumbSrc || img.dataset.upgraded === '1') {
         return;
       }
-
       img.dataset.upgraded = '1';
       img.src = thumbSrc;
     };
@@ -261,7 +272,6 @@
         });
         return;
       }
-
       galleryGrid.querySelectorAll('img[data-thumb-src]:not([data-upgraded="1"])').forEach((img) => {
         imageObserver.observe(img);
       });
@@ -271,7 +281,6 @@
       if (galleryLoading || (!galleryHasMore && !reset)) {
         return;
       }
-
       galleryLoading = true;
       if (reset) {
         galleryFiles = [];
@@ -279,7 +288,6 @@
         galleryHasMore = true;
         galleryGrid.innerHTML = '';
       }
-
       try {
         const url = new URL('./gallery.php', window.location.href);
         if (galleryNextPageToken) {
@@ -333,14 +341,12 @@
         </div>
       `;
 
-      const prevButton = document.getElementById('viewerPrev');
-      const nextButton = document.getElementById('viewerNext');
-      prevButton.addEventListener('click', () => {
+      document.getElementById('viewerPrev').addEventListener('click', () => {
         if (viewerOpenIndex > 0) {
           openViewer(viewerOpenIndex - 1, -1);
         }
       });
-      nextButton.addEventListener('click', () => {
+      document.getElementById('viewerNext').addEventListener('click', () => {
         if (viewerOpenIndex < files.length - 1) {
           openViewer(viewerOpenIndex + 1, 1);
         }
@@ -384,77 +390,115 @@
           viewerFrame.style.transform = 'translateX(0) scale(1)';
         }
       }
-
     };
 
     const openViewer = (index, slideDirection = 0) => {
       const previousIndex = viewerOpenIndex;
       viewerOpenIndex = Math.max(0, Math.min(index, galleryFiles.length - 1));
+
       if (slideDirection === 0 && viewerOpenIndex !== previousIndex) {
         slideDirection = viewerOpenIndex > previousIndex ? 1 : -1;
       }
+
       renderViewer(galleryFiles, viewerOpenIndex, slideDirection);
+
+      // Only lock the scroll if the viewer isn't already open
+      if (viewer.classList.contains('hidden')) {
+        // 1. Capture exact scroll position
+        scrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+
+        // 2. Fix the body in place at the current offset
+        // This prevents the "jump to top" behavior
+        document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollPosition}px`;
+        document.body.style.width = '100%';
+
+        // 3. History management for back button
+        const photoId = galleryFiles[viewerOpenIndex]?.id || '';
+        if (photoId) {
+          const hash = `photo=${encodeURIComponent(photoId)}`;
+          if (window.location.hash !== `#${hash}`) {
+            history.pushState({ viewerOpen: true }, '', `#${hash}`);
+          }
+        }
+      } else {
+        // Update URL hash for the current photo without adding new history entries
+        const photoId = galleryFiles[viewerOpenIndex]?.id || '';
+        if (photoId) {
+          history.replaceState({ viewerOpen: true }, '', `#photo=${encodeURIComponent(photoId)}`);
+        }
+      }
+
       viewer.classList.remove('hidden');
-      document.body.classList.add('overflow-hidden');
-      document.body.style.position = 'fixed';
-      document.body.style.inset = '0';
-      document.body.style.width = '100%';
-      document.documentElement.style.overscrollBehavior = 'none';
-      document.documentElement.style.touchAction = 'none';
-      document.body.classList.add('overscroll-none');
-      syncSharedPhotoState(galleryFiles[viewerOpenIndex]?.id || '');
       pendingSharedPhotoId = '';
       sharedPhotoResolved = true;
     };
 
     const closeViewerPanel = () => {
+      if (viewer.classList.contains('hidden')) return;
+
+      viewerList.querySelectorAll('video').forEach((video) => {
+        video.pause();
+        video.currentTime = 0;
+      });
+
       viewer.classList.add('hidden');
-      document.body.classList.remove('overflow-hidden');
-      document.body.style.position = '';
-      document.body.style.inset = '';
-      document.body.style.width = '';
-      document.documentElement.style.overscrollBehavior = '';
-      document.documentElement.style.touchAction = '';
+
+      // 1. Temporarily disable smooth scrolling to prevent "sliding" back
+      const html = document.documentElement;
+      html.classList.remove('scroll-smooth');
+
+      // 2. Remove the "fixed" constraints
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('position');
+      document.body.style.removeProperty('top');
+      document.body.style.removeProperty('width');
+
+      // 3. Reset document-level locks
+      html.style.overscrollBehavior = '';
+      html.style.touchAction = '';
       document.body.classList.remove('overscroll-none');
-      syncSharedPhotoState('');
+
+      // 4. Immediately jump back to the saved position
+      window.scrollTo(0, scrollPosition);
+
+      // 5. Re-enable smooth scrolling after a tiny delay
+      requestAnimationFrame(() => {
+        html.classList.add('scroll-smooth');
+      });
+
+      // 6. Clean up the URL hash
+      if (window.location.hash.startsWith('#photo=')) {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
     };
 
     const uploadFiles = async () => {
       if (uploadInProgress) {
         return;
       }
-
       const files = Array.from(fileInput.files || []);
       if (!files.length) {
         return;
       }
-
       uploadInProgress = true;
       fileInput.disabled = true;
       setUploadState(0, files.length);
-
       let successCount = 0;
-
       try {
         for (let index = 0; index < files.length; index += 1) {
           const file = files[index];
           setUploadState(index, files.length);
           const formData = new FormData();
           formData.append('file', file, file.name);
-
-          const response = await fetch('./upload.php', {
-            method: 'POST',
-            body: formData,
-          });
-
+          const response = await fetch('./upload.php', { method: 'POST', body: formData });
           if (!response.ok) {
             throw new Error(`Upload failed for ${file.name}`);
           }
-
           successCount += 1;
           setUploadState(index + 1, files.length);
         }
-
         fileInput.value = '';
         showUploadSuccess(successCount);
         await loadGalleryPage(true);
@@ -470,81 +514,68 @@
       }
     };
 
-    const galleryObserver = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        loadGalleryPage();
-      }
-    }, { rootMargin: '400px 0px' });
-
     fileInput.addEventListener('change', uploadFiles);
     galleryGrid.addEventListener('click', (event) => {
       const button = event.target.closest('button[data-index]');
       if (!button) {
         return;
       }
-
       event.preventDefault();
       event.stopPropagation();
       openViewer(Number(button.dataset.index || 0));
     });
+
     closeViewer.addEventListener('click', closeViewerPanel);
     viewer.addEventListener('click', (event) => {
       if (event.target === viewer) {
         closeViewerPanel();
       }
     });
+
+    // Handle Hardware Back Button / Browser Back
+    window.addEventListener('hashchange', () => {
+      const sharedPhotoId = getSharedPhotoId();
+      if (!sharedPhotoId) {
+        closeViewerPanel();
+      } else {
+        const targetIndex = galleryFiles.findIndex((file) => file.id === sharedPhotoId);
+        if (targetIndex !== -1 && viewerOpenIndex !== targetIndex) {
+          openViewer(targetIndex);
+        }
+      }
+    });
+
+    // Touch and Gesture logic
     viewer.addEventListener('touchstart', (event) => {
       if (!viewer.classList.contains('hidden') && event.touches.length >= 2) {
         const [first, second] = event.touches;
         const distance = Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
-        viewerGesture = {
-          mode: 'pinch',
-          startDistance: distance,
-          startScale: viewerZoomScale,
-          startX: viewerZoomTranslateX,
-          startY: viewerZoomTranslateY,
-        };
+        viewerGesture = { mode: 'pinch', startDistance: distance, startScale: viewerZoomScale, startX: viewerZoomTranslateX, startY: viewerZoomTranslateY };
         return;
       }
-
       if (viewerZoomScale > 1 && event.touches.length === 1) {
         const touch = event.touches[0];
-        viewerGesture = {
-          mode: 'pan',
-          startClientX: touch.clientX,
-          startClientY: touch.clientY,
-          startScale: viewerZoomScale,
-          startX: viewerZoomTranslateX,
-          startY: viewerZoomTranslateY,
-        };
+        viewerGesture = { mode: 'pan', startClientX: touch.clientX, startClientY: touch.clientY, startScale: viewerZoomScale, startX: viewerZoomTranslateX, startY: viewerZoomTranslateY };
         return;
       }
-
       const touch = event.changedTouches[0];
       viewerTouchStartX = touch.clientX;
       viewerTouchStartY = touch.clientY;
     }, { passive: true });
+
     viewer.addEventListener('touchmove', (event) => {
       if (event.touches.length >= 2) {
         const [first, second] = event.touches;
         const distance = Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
         if (!viewerGesture || viewerGesture.mode !== 'pinch') {
-          viewerGesture = {
-            mode: 'pinch',
-            startDistance: distance,
-            startScale: viewerZoomScale,
-            startX: viewerZoomTranslateX,
-            startY: viewerZoomTranslateY,
-          };
+          viewerGesture = { mode: 'pinch', startDistance: distance, startScale: viewerZoomScale, startX: viewerZoomTranslateX, startY: viewerZoomTranslateY };
           return;
         }
-
         const nextScale = viewerGesture.startScale * (distance / viewerGesture.startDistance);
         updateViewerZoom(nextScale, viewerZoomTranslateX, viewerZoomTranslateY);
         event.preventDefault();
         return;
       }
-
       if (viewerZoomScale > 1 && viewerGesture && viewerGesture.mode === 'pan') {
         const touch = event.touches[0];
         const deltaX = touch.clientX - viewerGesture.startClientX;
@@ -553,12 +584,12 @@
         event.preventDefault();
       }
     }, { passive: false });
+
     viewer.addEventListener('touchend', (event) => {
       if (event.touches.length === 0 && viewerGesture && viewerGesture.mode === 'pinch') {
         viewerGesture = null;
         return;
       }
-
       const touch = event.changedTouches[0];
       const tappedImage = Boolean(event.target.closest('[data-zoom-target]'));
       const now = Date.now();
@@ -571,53 +602,34 @@
       }
       viewerLastTapAt = now;
       viewerLastTapTarget = tappedImage ? 'image' : '';
-
       const deltaX = touch.clientX - viewerTouchStartX;
       const deltaY = touch.clientY - viewerTouchStartY;
-
       if (viewerZoomScale > 1) {
         return;
       }
-
       if (Math.abs(deltaX) < 40 || Math.abs(deltaY) > 80) {
         return;
       }
-
       if (deltaX < 0 && viewerOpenIndex < galleryFiles.length - 1) {
         openViewer(viewerOpenIndex + 1, 1);
       } else if (deltaX > 0 && viewerOpenIndex > 0) {
         openViewer(viewerOpenIndex - 1, -1);
       }
     }, { passive: true });
+
     viewer.addEventListener('wheel', (event) => {
-      const zoomTarget = viewerList.querySelector('[data-zoom-target]');
-      if (!zoomTarget) {
+      if (!viewerList.querySelector('[data-zoom-target]')) {
         return;
       }
-
       event.preventDefault();
       const nextScale = viewerZoomScale + (event.deltaY < 0 ? 0.15 : -0.15);
       updateViewerZoom(nextScale);
     }, { passive: false });
-    document.addEventListener('touchmove', (event) => {
-      if (!isViewerActive()) {
-        return;
-      }
 
-      event.preventDefault();
-    }, { passive: false, capture: true });
-    document.addEventListener('wheel', (event) => {
-      if (!isViewerActive()) {
-        return;
-      }
-
-      event.preventDefault();
-    }, { passive: false, capture: true });
     document.addEventListener('keydown', (event) => {
       if (viewer.classList.contains('hidden')) {
         return;
       }
-
       if (event.key === 'ArrowLeft' && viewerOpenIndex > 0) {
         event.preventDefault();
         openViewer(viewerOpenIndex - 1, -1);
@@ -629,27 +641,11 @@
         closeViewerPanel();
       }
     });
-    window.addEventListener('hashchange', () => {
-      const sharedPhotoId = getSharedPhotoId();
-      pendingSharedPhotoId = sharedPhotoId;
-      sharedPhotoResolved = false;
-      if (!sharedPhotoId) {
-        if (!viewer.classList.contains('hidden')) {
-          closeViewerPanel();
-        }
-        return;
-      }
 
-      const targetIndex = galleryFiles.findIndex((file) => file.id === sharedPhotoId);
-      if (targetIndex !== -1) {
-        openViewer(targetIndex);
-      }
-    });
     const maybeLoadMore = () => {
       if (galleryLoading || !galleryHasMore) {
         return;
       }
-
       const distanceToBottom = document.documentElement.scrollHeight - (window.scrollY + window.innerHeight);
       if (distanceToBottom < 800) {
         loadGalleryPage();
@@ -663,7 +659,6 @@
         }
       }, { rootMargin: '800px 0px' });
       galleryObserver.observe(gallerySentinel);
-
       imageObserver = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
@@ -671,19 +666,15 @@
           }
         });
       }, { rootMargin: '200px 0px' });
-
       observeGalleryImages();
     } else {
-      galleryGrid.querySelectorAll('img[data-thumb-src]').forEach((img) => {
-        upgradeGalleryImage(img);
-      });
+      galleryGrid.querySelectorAll('img[data-thumb-src]').forEach(upgradeGalleryImage);
     }
 
     window.addEventListener('scroll', maybeLoadMore, { passive: true });
     window.addEventListener('resize', maybeLoadMore);
     loadGalleryPage(true);
   </script>
-
 </main>
 </body>
 </html>
