@@ -1,4 +1,5 @@
 <?php
+
 require_once __DIR__ . '/request_guard.php';
 guardRequest(['GET', 'HEAD']);
 applySecurityHeaders();
@@ -23,42 +24,56 @@ $db = new PDO('sqlite:' . $dbPath);
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
-function getS3Client(): S3Client
-{
+function getS3Client(): S3Client {
+  static $client = NULL;
+
+  // Return the cached version if it exists
+  if ($client instanceof S3Client) {
+    return $client;
+  }
+
   $region = getenv('HETZNER_S3_REGION') ?: 'us-east-1';
   $endpoint = getenv('HETZNER_S3_ENDPOINT');
-  if ($endpoint === false || $endpoint === '') {
+
+  if ($endpoint === FALSE || $endpoint === '') {
     header('HTTP/1.1 500 Internal Server Error');
     exit('Missing HETZNER_S3_ENDPOINT');
   }
+
   if (!preg_match('#^https?://#i', $endpoint)) {
     $endpoint = 'https://' . $endpoint;
   }
 
-  return new S3Client([
+  // ASSIGN the result to the static variable here
+  $client = new S3Client([
     'version' => 'latest',
     'region' => $region,
     'endpoint' => $endpoint,
-    'use_path_style_endpoint' => true,
+    'use_path_style_endpoint' => TRUE,
     'credentials' => [
       'key' => getenv('HETZNER_S3_ACCESS_KEY_ID'),
       'secret' => getenv('HETZNER_S3_SECRET_ACCESS_KEY'),
     ],
   ]);
+
+  return $client;
 }
 
-function getBucketName(): string
-{
+function getBucketName(): string {
+  static $bucket = NULL;
+  if (is_string($bucket) && $bucket !== '') {
+    return $bucket;
+  }
+
   $bucket = getenv('HETZNER_S3_BUCKET');
-  if ($bucket === false || $bucket === '') {
+  if ($bucket === FALSE || $bucket === '') {
     header('HTTP/1.1 500 Internal Server Error');
     exit('Missing HETZNER_S3_BUCKET');
   }
   return $bucket;
 }
 
-function presignObjectUrl(S3Client $s3, string $bucket, string $key, int $minutes = 10): string
-{
+function presignObjectUrl(S3Client $s3, string $bucket, string $key, int $minutes = 10): string {
   $command = $s3->getCommand('GetObject', [
     'Bucket' => $bucket,
     'Key' => $key,
@@ -108,15 +123,16 @@ foreach ($files as $row) {
   echo '<figure class="overflow-hidden">';
   echo '<button type="button" data-index="" data-id="' . $id . '" data-name="' . $name . '" data-kind="' . $kind . '" data-mime-type="' . $mimeType . '" data-src="' . $src . '" data-display-src="' . $displaySrc . '" data-thumb-src="' . $thumbSrc . '" class="block w-full text-left">';
   if ($row['kind'] === 'video') {
-    echo '<div class="relative aspect-[1/1] w-full overflow-hidden bg-black">';
+    echo '<div class="relative aspect-square w-full overflow-hidden bg-black">';
     echo '<img src="' . $thumbSrc . '" alt="' . $name . '" class="h-full w-full object-cover" loading="lazy" decoding="async" fetchpriority="low">';
     echo '<div class="absolute inset-0 bg-black/12"></div>';
     echo '<div class="absolute inset-0 flex items-center justify-center text-white/90">';
     echo '<div class="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm">';
     echo '<svg viewBox="0 0 24 24" aria-hidden="true" class="h-5 w-5 fill-white"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>';
     echo '</div></div></div>';
-  } else {
-    echo '<img src="' . $previewSrc . '" data-thumb-src="' . $thumbSrc . '" alt="' . $name . '" class="aspect-[1/1] w-full object-cover" loading="lazy" decoding="async" fetchpriority="low">';
+  }
+  else {
+    echo '<img src="' . $previewSrc . '" data-thumb-src="' . $thumbSrc . '" alt="' . $name . '" class="aspect-square w-full object-cover" loading="lazy" decoding="async" fetchpriority="low">';
   }
   echo '</button></figure>';
 }

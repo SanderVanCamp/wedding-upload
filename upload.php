@@ -363,6 +363,11 @@ function getDb(): PDO
 
 function getS3Client(): S3Client
 {
+  static $client = null;
+  if ($client instanceof S3Client) {
+    return $client;
+  }
+
   $region = getenv('HETZNER_S3_REGION') ?: 'us-east-1';
   $endpoint = getenv('HETZNER_S3_ENDPOINT');
   if ($endpoint === false || $endpoint === '') {
@@ -373,7 +378,7 @@ function getS3Client(): S3Client
     $endpoint = 'https://' . $endpoint;
   }
 
-  return new S3Client([
+  $client = new S3Client([
     'version' => 'latest',
     'region' => $region,
     'endpoint' => $endpoint,
@@ -383,10 +388,17 @@ function getS3Client(): S3Client
       'secret' => getenv('HETZNER_S3_SECRET_ACCESS_KEY'),
     ],
   ]);
+
+  return $client;
 }
 
 function getBucketName(): string
 {
+  static $bucket = null;
+  if (is_string($bucket) && $bucket !== '') {
+    return $bucket;
+  }
+
   $bucket = getenv('HETZNER_S3_BUCKET');
   if ($bucket === false || $bucket === '') {
     header('HTTP/1.1 500 Internal Server Error');

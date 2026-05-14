@@ -1,4 +1,5 @@
 <?php
+
 require_once __DIR__ . '/request_guard.php';
 $allowedMethods = ['GET', 'HEAD'];
 guardRequest($allowedMethods);
@@ -17,7 +18,7 @@ if ($sharedPhotoId !== '') {
     $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     $columns = [];
     foreach ($db->query('PRAGMA table_info(uploads)') as $column) {
-      $columns[$column['name']] = true;
+      $columns[$column['name']] = TRUE;
     }
     if (isset($columns['thumb_width'], $columns['thumb_height'])) {
       $stmt = $db->prepare('SELECT thumb_width, thumb_height FROM uploads WHERE local_key = :local_key LIMIT 1');
@@ -35,7 +36,8 @@ if ($sharedPhotoId !== '') {
 <html lang="en" class="scroll-smooth">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>Sander & Silvie</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -49,13 +51,16 @@ if ($sharedPhotoId !== '') {
   <meta name="color-scheme" content="light">
 
   <meta property="og:type" content="website">
-  <meta property="og:url" content="<?php echo htmlspecialchars($baseUrl . '/index.php' . ($sharedPhotoId ? '?photo=' . rawurlencode($sharedPhotoId) : ''), ENT_QUOTES, 'UTF-8'); ?>">
+  <meta property="og:url"
+        content="<?php echo htmlspecialchars($baseUrl . '/index.php' . ($sharedPhotoId ? '?photo=' . rawurlencode($sharedPhotoId) : ''), ENT_QUOTES, 'UTF-8'); ?>">
   <meta property="og:title" content="Sander & Silvie">
   <meta property="og:description"
         content="Heb je foto's genomen op ons trouwfeest? Deel ze hier met ons, zodat we samen nog eens kunnen nagenieten van die mooie dag.">
-  <meta property="og:image" content="<?php echo htmlspecialchars($baseUrl . '/' . ($sharedPhotoId ? 'thumb.php?photo=' . rawurlencode($sharedPhotoId) . '&variant=display' : 'share/share.jpg'), ENT_QUOTES, 'UTF-8'); ?>">
+  <meta property="og:image"
+        content="<?php echo htmlspecialchars($baseUrl . '/' . ($sharedPhotoId ? 'thumb.php?photo=' . rawurlencode($sharedPhotoId) . '&variant=display' : 'share/share.jpg'), ENT_QUOTES, 'UTF-8'); ?>">
   <meta property="og:image:width" content="<?php echo (int) $ogImageWidth; ?>">
-  <meta property="og:image:height" content="<?php echo (int) $ogImageHeight; ?>">
+  <meta property="og:image:height"
+        content="<?php echo (int) $ogImageHeight; ?>">
 
   <link href="/dist/output.css?v=4" rel="stylesheet">
 </head>
@@ -63,10 +68,15 @@ if ($sharedPhotoId !== '') {
 <main class="relative min-h-screen overflow-hidden sm:px-6 lg:px-8">
 
   <div class="mx-auto max-w-7xl">
-    <header id="heroHeader" class="relative flex h-[50vh] items-center justify-center overflow-hidden bg-[#c77452] px-4 py-8 font-body text-[#f2d8c5] sm:py-10">
-      <div id="heroParallax" class="flex w-full flex-col items-center gap-12 sm:gap-6 will-change-transform">
-        <img src="/hero-names.svg" alt="Sander & Silvie" class="h-auto max-h-[28vh] w-full max-w-[880px] object-contain sm:max-h-[30vh]" loading="eager" decoding="async">
-        <input id="fileInput" type="file" accept="image/*,video/*" multiple class="hidden">
+    <header id="heroHeader"
+            class="relative flex h-[50vh] items-center justify-center overflow-hidden bg-[#c77452] px-4 py-8 font-body text-[#f2d8c5] sm:py-10">
+      <div id="heroParallax"
+           class="flex w-full flex-col items-center gap-12 sm:gap-6 will-change-transform">
+        <img src="/hero-names.svg" alt="Sander & Silvie"
+             class="h-auto max-h-[28vh] w-full max-w-[880px] object-contain sm:max-h-[30vh]"
+             loading="eager" decoding="async">
+        <input id="fileInput" type="file" accept="image/*,video/*" multiple
+               class="hidden">
         <label for="fileInput"
                class="whitespace-nowrap inline-flex min-h-[40px] items-center justify-center rounded-xl bg-[#f3d7c2] px-4 sm:px-8 text-center font-semibold uppercase tracking-wide md:tracking-wider text-[#798060] shadow-[8px_8px_0_0_rgba(235,191,161,0.55)] transition hover:translate-y-[1px] cursor-pointer">
           Upload
@@ -76,7 +86,8 @@ if ($sharedPhotoId !== '') {
 
     <div class="grid gap-5 p-0.5 -mx-0.5">
       <div id="galleryState" class="hidden"></div>
-      <div id="galleryGrid" class="grid grid-cols-3 gap-0.5 sm:grid-cols-5 xl:grid-cols-6"></div>
+      <div id="galleryGrid"
+           class="grid grid-cols-3 gap-0.5 sm:grid-cols-5 xl:grid-cols-6"></div>
       <div id="gallerySentinel" class="h-px"></div>
     </div>
   </div>
@@ -90,7 +101,8 @@ if ($sharedPhotoId !== '') {
           <div id="uploadProgressBar"
                class="h-full w-0 rounded-full bg-[#1f1a17] transition-[width] duration-200"></div>
         </div>
-        <div id="uploadStatus" class="shrink-0 flex items-center gap-2 text-sm text-[#6f6258]">
+        <div id="uploadStatus"
+             class="shrink-0 flex items-center gap-2 text-sm text-[#6f6258]">
           <svg id="uploadSpinner" viewBox="0 0 24 24" aria-hidden="true"
                class="hidden h-4 w-4 animate-spin fill-none stroke-current stroke-[2]">
             <circle cx="12" cy="12" r="8" class="opacity-25"></circle>
@@ -119,7 +131,8 @@ if ($sharedPhotoId !== '') {
           <button id="closeViewer" type="button"
                   class="cursor-pointer inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/18"
                   aria-label="Close viewer">
-            <svg viewBox="0 0 24 24" aria-hidden="true" class="h-5 w-5 stroke-current stroke-2 fill-none">
+            <svg viewBox="0 0 24 24" aria-hidden="true"
+                 class="h-5 w-5 stroke-current stroke-2 fill-none">
               <path d="M6 6l12 12M18 6 6 18"></path>
             </svg>
           </button>
@@ -555,7 +568,9 @@ if ($sharedPhotoId !== '') {
     };
 
     const closeViewerPanel = () => {
-      if (viewer.classList.contains('hidden')) return;
+      if (viewer.classList.contains('hidden')) {
+        return;
+      }
 
       viewerList.querySelectorAll('video').forEach((video) => {
         video.pause();
