@@ -105,14 +105,15 @@ function generateAdaptiveThumbJpegFromImage($source, int $sourceType, int $short
     return null;
   }
 
-  $aspectRatio = $width / $height;
-  if ($aspectRatio >= 1) {
-    $targetHeight = $shortEdge;
-    $targetWidth = min($maxLongEdge, max($shortEdge, (int) round($shortEdge * $aspectRatio)));
-  } else {
-    $targetWidth = $shortEdge;
-    $targetHeight = min($maxLongEdge, max($shortEdge, (int) round($shortEdge / $aspectRatio)));
+  $longEdge = max($width, $height);
+  $targetLongEdge = min($longEdge, $maxLongEdge);
+  if ($targetLongEdge < $shortEdge && $longEdge >= $shortEdge) {
+    $targetLongEdge = $shortEdge;
   }
+
+  $scale = $targetLongEdge / $longEdge;
+  $targetWidth = max(1, (int) round($width * $scale));
+  $targetHeight = max(1, (int) round($height * $scale));
 
   $thumb = imagecreatetruecolor($targetWidth, $targetHeight);
   $white = imagecolorallocate($thumb, 255, 255, 255);
