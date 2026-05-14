@@ -1,4 +1,32 @@
-<?php $sharedPhotoId = preg_match('/^[a-f0-9]{40}$/', (string) ($_GET['photo'] ?? '')) ? (string) $_GET['photo'] : ''; ?>
+<?php
+$sharedPhotoId = preg_match('/^[a-f0-9]{40}$/', (string) ($_GET['photo'] ?? '')) ? (string) $_GET['photo'] : '';
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$host = $_SERVER['HTTP_HOST'] ?? 'vooraltijdmijnliefje.be';
+$baseUrl = $scheme . '://' . $host;
+$ogImageWidth = 1200;
+$ogImageHeight = 630;
+if ($sharedPhotoId !== '') {
+  $dbPath = __DIR__ . '/media.sqlite';
+  if (file_exists($dbPath)) {
+    $db = new PDO('sqlite:' . $dbPath);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $columns = [];
+    foreach ($db->query('PRAGMA table_info(uploads)') as $column) {
+      $columns[$column['name']] = true;
+    }
+    if (isset($columns['thumb_width'], $columns['thumb_height'])) {
+      $stmt = $db->prepare('SELECT thumb_width, thumb_height FROM uploads WHERE local_key = :local_key LIMIT 1');
+      $stmt->execute([':local_key' => $sharedPhotoId]);
+      $row = $stmt->fetch();
+      if ($row) {
+        $ogImageWidth = (int) ($row['thumb_width'] ?: $ogImageWidth);
+        $ogImageHeight = (int) ($row['thumb_height'] ?: $ogImageHeight);
+      }
+    }
+  }
+}
+?>
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
@@ -17,14 +45,13 @@
   <meta name="color-scheme" content="light">
 
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://vooraltijdmijnliefje.be/index.php<?php echo $sharedPhotoId ? '?photo=' . htmlspecialchars($sharedPhotoId, ENT_QUOTES, 'UTF-8') : ''; ?>">
+  <meta property="og:url" content="<?php echo htmlspecialchars($baseUrl . '/index.php' . ($sharedPhotoId ? '?photo=' . rawurlencode($sharedPhotoId) : ''), ENT_QUOTES, 'UTF-8'); ?>">
   <meta property="og:title" content="Sander & Silvie">
   <meta property="og:description"
         content="Heb je foto's genomen op ons trouwfeest? Deel ze hier met ons, zodat we samen nog eens kunnen nagenieten van die mooie dag.">
-  <meta property="og:image" content="/share/share.jpg">
-
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
+  <meta property="og:image" content="<?php echo htmlspecialchars($baseUrl . '/' . ($sharedPhotoId ? 'thumb.php?photo=' . rawurlencode($sharedPhotoId) : 'share/share.jpg'), ENT_QUOTES, 'UTF-8'); ?>">
+  <meta property="og:image:width" content="<?php echo (int) $ogImageWidth; ?>">
+  <meta property="og:image:height" content="<?php echo (int) $ogImageHeight; ?>">
 
   <link href="/dist/output.css?v=4" rel="stylesheet">
 </head>
@@ -80,16 +107,10 @@
           <div class="text-sm font-semibold text-white">Gallery</div>
           <div id="viewerCount" class="text-xs text-white/70"></div>
         </div>
-        <div class="flex items-center gap-2">
-          <button id="shareViewer" type="button" aria-label="Share photo"
-                  class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/18">
-            <svg viewBox="0 0 24 24" aria-hidden="true" class="h-5 w-5 fill-current"><path d="M14 9l-1.41 1.41L16.17 14H9v2h7.17l-3.58 3.59L14 21l6-6-6-6ZM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5Z"/></svg>
-          </button>
-          <button id="closeViewer" type="button"
-                  class="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/18">
-            Close
-          </button>
-        </div>
+        <button id="closeViewer" type="button"
+                class="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/18">
+          Close
+        </button>
       </div>
       <div id="viewerList" class="relative flex-1 overflow-hidden"></div>
     </div>
@@ -108,7 +129,6 @@
     const viewer = document.getElementById('viewer');
     const viewerList = document.getElementById('viewerList');
     const viewerCount = document.getElementById('viewerCount');
-    const shareViewer = document.getElementById('shareViewer');
     const closeViewer = document.getElementById('closeViewer');
     const initialSharedPhotoId = <?php echo json_encode($sharedPhotoId); ?>;
 
@@ -132,28 +152,31 @@
     let scrollPosition = 0;
 
     const getSharedPhotoId = () => {
-      const match = window.location.hash.match(/photo=([^&]+)/);
-      if (match) {
-        return decodeURIComponent(match[1]);
-      }
       const queryMatch = window.location.search.match(/[?&]photo=([^&]+)/);
-      return queryMatch ? decodeURIComponent(queryMatch[1]) : '';
+      if (queryMatch) {
+        return decodeURIComponent(queryMatch[1]);
+      }
+      const hashMatch = window.location.hash.match(/photo=([^&]+)/);
+      return hashMatch ? decodeURIComponent(hashMatch[1]) : '';
     };
 
     const syncSharedPhotoState = (photoId) => {
       if (photoId) {
-        const hash = `photo=${encodeURIComponent(photoId)}`;
-        if (window.location.hash !== `#${hash}`) {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('photo') !== photoId) {
+          url.searchParams.set('photo', photoId);
           // Use pushState so back button works
-          history.pushState({ photoId }, '', `#${hash}`);
+          history.pushState({ photoId }, '', `${url.pathname}${url.search}${url.hash}`);
         }
-      } else if (window.location.hash.startsWith('#photo=')) {
+      } else if (window.location.search.includes('photo=')) {
         // If we are clearing, we usually want to go back in history if possible
         // but closeViewerPanel handles manual clearing via replaceState
       }
     };
 
     let pendingSharedPhotoId = getSharedPhotoId() || initialSharedPhotoId;
+    let activeSharedPhotoId = pendingSharedPhotoId;
+    let modalRestorePhotoId = '';
     let sharedPhotoResolved = false;
 
     const escapeHtml = (value) => value
@@ -233,6 +256,31 @@
 
     const isViewerActive = () => !viewer.classList.contains('hidden');
 
+    const scrollToSharedPhotoTile = async (photoId) => {
+      if (!photoId) {
+        return false;
+      }
+
+      let attempts = 0;
+      while (attempts < 12) {
+        const tile = galleryGrid.querySelector(`button[data-id="${photoId}"]`);
+        if (tile) {
+          const html = document.documentElement;
+          const previousScrollBehavior = html.style.scrollBehavior;
+          html.style.scrollBehavior = 'auto';
+          tile.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+          html.style.scrollBehavior = previousScrollBehavior;
+          return true;
+        }
+        if (!galleryHasMore) {
+          break;
+        }
+        await loadGalleryPage();
+        attempts += 1;
+      }
+      return false;
+    };
+
     const tryOpenSharedPhoto = () => {
       if (sharedPhotoResolved || !pendingSharedPhotoId) {
         return false;
@@ -242,6 +290,7 @@
         return false;
       }
       sharedPhotoResolved = true;
+      activeSharedPhotoId = pendingSharedPhotoId;
       openViewer(targetIndex);
       return true;
     };
@@ -260,11 +309,12 @@
         if (!file || !file.id) {
           return false;
         }
-        galleryFiles = [file];
         viewerOpenIndex = 0;
         sharedPhotoResolved = true;
+        modalRestorePhotoId = pendingSharedPhotoId;
+        activeSharedPhotoId = pendingSharedPhotoId;
         viewer.classList.remove('hidden');
-        renderViewer(galleryFiles, 0, 0);
+        renderViewer([file], 0, 0);
         return true;
       } catch (error) {
         return false;
@@ -434,6 +484,9 @@
     const openViewer = (index, slideDirection = 0) => {
       const previousIndex = viewerOpenIndex;
       viewerOpenIndex = Math.max(0, Math.min(index, galleryFiles.length - 1));
+      const nextPhotoId = galleryFiles[viewerOpenIndex]?.id || '';
+      const url = new URL(window.location.href);
+      modalRestorePhotoId = url.searchParams.get('photo') || activeSharedPhotoId || nextPhotoId;
 
       if (slideDirection === 0 && viewerOpenIndex !== previousIndex) {
         slideDirection = viewerOpenIndex > previousIndex ? 1 : -1;
@@ -454,34 +507,24 @@
         document.body.style.width = '100%';
 
         // 3. History management for back button
-        const photoId = galleryFiles[viewerOpenIndex]?.id || '';
-        if (photoId) {
-          const hash = `photo=${encodeURIComponent(photoId)}`;
-          if (window.location.hash !== `#${hash}`) {
-            history.pushState({ viewerOpen: true }, '', `#${hash}`);
+        if (nextPhotoId) {
+          if (url.searchParams.get('photo') !== nextPhotoId) {
+            url.searchParams.set('photo', nextPhotoId);
+            history.pushState({ viewerOpen: true }, '', `${url.pathname}${url.search}${url.hash}`);
           }
         }
       } else {
         // Update URL hash for the current photo without adding new history entries
-        const photoId = galleryFiles[viewerOpenIndex]?.id || '';
-        if (photoId) {
-          history.replaceState({ viewerOpen: true }, '', `#photo=${encodeURIComponent(photoId)}`);
+        if (nextPhotoId) {
+          url.searchParams.set('photo', nextPhotoId);
+          history.replaceState({ viewerOpen: true }, '', `${url.pathname}${url.search}${url.hash}`);
         }
       }
 
       viewer.classList.remove('hidden');
+      activeSharedPhotoId = nextPhotoId;
       pendingSharedPhotoId = '';
       sharedPhotoResolved = true;
-    };
-
-    const getShareUrlForCurrentPhoto = () => {
-      const photoId = galleryFiles[viewerOpenIndex]?.id || '';
-      if (!photoId) {
-        return '';
-      }
-      const url = new URL('./share.php', window.location.href);
-      url.searchParams.set('photo', photoId);
-      return url.toString();
     };
 
     const closeViewerPanel = () => {
@@ -493,10 +536,13 @@
       });
 
       viewer.classList.add('hidden');
+      const restorePhotoId = modalRestorePhotoId;
 
       // 1. Temporarily disable smooth scrolling to prevent "sliding" back
       const html = document.documentElement;
       html.classList.remove('scroll-smooth');
+      const previousScrollBehavior = html.style.scrollBehavior;
+      html.style.scrollBehavior = 'auto';
 
       // 2. Remove the "fixed" constraints
       document.body.style.removeProperty('overflow');
@@ -510,16 +556,27 @@
       document.body.classList.remove('overscroll-none');
 
       // 4. Immediately jump back to the saved position
-      window.scrollTo(0, scrollPosition);
+      if (restorePhotoId) {
+        requestAnimationFrame(() => {
+          scrollToSharedPhotoTile(restorePhotoId);
+        });
+      } else {
+        window.scrollTo(0, scrollPosition);
+      }
 
       // 5. Re-enable smooth scrolling after a tiny delay
       requestAnimationFrame(() => {
+        html.style.scrollBehavior = previousScrollBehavior;
         html.classList.add('scroll-smooth');
       });
 
       // 6. Clean up the URL hash
-      if (window.location.hash.startsWith('#photo=')) {
-        history.replaceState(null, '', window.location.pathname + window.location.search);
+      if (restorePhotoId) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('photo');
+        history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+        activeSharedPhotoId = '';
+        modalRestorePhotoId = '';
       }
     };
 
@@ -575,23 +632,6 @@
     });
 
     closeViewer.addEventListener('click', closeViewerPanel);
-    shareViewer.addEventListener('click', async () => {
-      const shareUrl = getShareUrlForCurrentPhoto();
-      if (!shareUrl) return;
-      if (navigator.share) {
-        try {
-          await navigator.share({ url: shareUrl, title: document.title });
-          return;
-        } catch (error) {
-          // fall through to clipboard
-        }
-      }
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-      } catch (error) {
-        window.prompt('Copy this link', shareUrl);
-      }
-    });
     viewer.addEventListener('click', (event) => {
       if (event.target === viewer) {
         closeViewerPanel();
@@ -599,7 +639,7 @@
     });
 
     // Handle Hardware Back Button / Browser Back
-    window.addEventListener('hashchange', () => {
+    window.addEventListener('popstate', () => {
       const sharedPhotoId = getSharedPhotoId();
       if (!sharedPhotoId) {
         closeViewerPanel();

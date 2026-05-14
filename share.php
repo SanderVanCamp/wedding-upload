@@ -9,11 +9,18 @@ $photoId = trim((string) ($_GET['photo'] ?? ''));
 $fallbackTitle = 'Sander & Silvie';
 $fallbackDescription = "Heb je foto's genomen op ons trouwfeest? Deel ze hier met ons, zodat we samen nog eens kunnen nagenieten van die mooie dag.";
 $fallbackImage = '/share/share.jpg';
-$pageUrl = 'https://vooraltijdmijnliefje.be/share.php';
+$fallbackImageWidth = 1200;
+$fallbackImageHeight = 630;
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$host = $_SERVER['HTTP_HOST'] ?? 'vooraltijdmijnliefje.be';
+$baseUrl = $scheme . '://' . $host;
+$pageUrl = $baseUrl . '/share.php';
 $shareImage = $fallbackImage;
 $title = $fallbackTitle;
 $description = $fallbackDescription;
 $galleryUrl = '/index.php';
+$imageWidth = $fallbackImageWidth;
+$imageHeight = $fallbackImageHeight;
 
 function getS3Client(): S3Client
 {
@@ -65,9 +72,14 @@ if ($photoId !== '' && preg_match('/^[a-f0-9]{40}$/', $photoId)) {
     $db = new PDO('sqlite:' . $dbPath);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $columns = [];
+    foreach ($db->query('PRAGMA table_info(uploads)') as $column) {
+      $columns[$column['name']] = true;
+    }
+    $hasThumbDimensions = isset($columns['thumb_width'], $columns['thumb_height']);
 
     $stmt = $db->prepare('
-      SELECT local_key, file_name, mime_type, kind, object_key, preview_data_uri, thumb_object_key, created_at
+      SELECT local_key, file_name, mime_type, kind, object_key, preview_data_uri, thumb_object_key' . ($hasThumbDimensions ? ', thumb_width, thumb_height' : '') . ', created_at
       FROM uploads
       WHERE local_key = :local_key
       LIMIT 1
@@ -83,12 +95,14 @@ if ($photoId !== '' && preg_match('/^[a-f0-9]{40}$/', $photoId)) {
       $shareImage = $row['thumb_object_key']
         ? presignObjectUrl($s3, $bucket, $thumbObjectKey, 60)
         : presignObjectUrl($s3, $bucket, $displayObjectKey, 60);
+      $imageWidth = (int) (($row['thumb_width'] ?? null) ?: $fallbackImageWidth);
+      $imageHeight = (int) (($row['thumb_height'] ?? null) ?: $fallbackImageHeight);
       $title = $row['file_name'] ?: $fallbackTitle;
       $description = $row['kind'] === 'video'
         ? 'Bekijk deze video uit ons trouwalbum.'
         : 'Bekijk deze foto uit ons trouwalbum.';
       $galleryUrl = '/index.php?photo=' . rawurlencode($photoId);
-      $pageUrl = 'https://vooraltijdmijnliefje.be/share.php?photo=' . rawurlencode($photoId);
+      $pageUrl = $baseUrl . '/share.php?photo=' . rawurlencode($photoId);
     }
   }
 }
@@ -106,8 +120,8 @@ header('Cache-Control: public, max-age=60');
   <meta property="og:title" content="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>">
   <meta property="og:description" content="<?= htmlspecialchars($description, ENT_QUOTES, 'UTF-8') ?>">
   <meta property="og:image" content="<?= htmlspecialchars($shareImage, ENT_QUOTES, 'UTF-8') ?>">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
+  <meta property="og:image:width" content="<?= (int) ($imageWidth ?? $fallbackImageWidth) ?>">
+  <meta property="og:image:height" content="<?= (int) ($imageHeight ?? $fallbackImageHeight) ?>">
   <meta http-equiv="refresh" content="0;url=<?= htmlspecialchars($galleryUrl, ENT_QUOTES, 'UTF-8') ?>">
   <title><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></title>
 </head>

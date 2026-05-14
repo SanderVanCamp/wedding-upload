@@ -268,13 +268,16 @@ function getDb(): PDO
           object_key TEXT NOT NULL,
           preview_data_uri TEXT,
           thumb_object_key TEXT,
+          thumb_width INTEGER,
+          thumb_height INTEGER,
           created_at TEXT NOT NULL
         )
       ');
     } else {
-      foreach (['preview_data_uri'] as $columnName) {
+      foreach (['preview_data_uri', 'thumb_width', 'thumb_height'] as $columnName) {
         if (!isset($columns[$columnName])) {
-          $pdo->exec('ALTER TABLE uploads ADD COLUMN ' . $columnName . ' TEXT');
+          $columnType = in_array($columnName, ['thumb_width', 'thumb_height'], true) ? 'INTEGER' : 'TEXT';
+          $pdo->exec('ALTER TABLE uploads ADD COLUMN ' . $columnName . ' ' . $columnType);
         }
       }
     }
@@ -289,6 +292,8 @@ function getDb(): PDO
         object_key TEXT NOT NULL,
         preview_data_uri TEXT,
         thumb_object_key TEXT,
+        thumb_width INTEGER,
+        thumb_height INTEGER,
         created_at TEXT NOT NULL
       )
     ');
@@ -372,6 +377,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $bucket = getBucketName();
     $previewDataUri = null;
     $thumbObjectKey = null;
+    $thumbWidth = null;
+    $thumbHeight = null;
     $displayObjectKey = null;
     $s3->putObject([
       'Bucket' => $bucket,
@@ -410,6 +417,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       if ($thumbBody !== null) {
         $thumbObjectKey = 'uploads/thumbs/' . $localKey . '.jpg';
+        $thumbInfo = @getimagesizefromstring($thumbBody);
+        if ($thumbInfo && isset($thumbInfo[0], $thumbInfo[1])) {
+          $thumbWidth = (int) $thumbInfo[0];
+          $thumbHeight = (int) $thumbInfo[1];
+        }
         $s3->putObject([
           'Bucket' => $bucket,
           'Key' => $thumbObjectKey,
@@ -423,6 +435,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $thumbBody = generateVideoThumbnailJpeg($filePath, 300, 72);
       if ($thumbBody !== null) {
         $thumbObjectKey = 'uploads/thumbs/' . $localKey . '.jpg';
+        $thumbInfo = @getimagesizefromstring($thumbBody);
+        if ($thumbInfo && isset($thumbInfo[0], $thumbInfo[1])) {
+          $thumbWidth = (int) $thumbInfo[0];
+          $thumbHeight = (int) $thumbInfo[1];
+        }
         $s3->putObject([
           'Bucket' => $bucket,
           'Key' => $thumbObjectKey,
@@ -436,9 +453,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stmt = $db->prepare('
       INSERT OR REPLACE INTO uploads
-        (local_key, file_name, mime_type, kind, object_key, preview_data_uri, thumb_object_key, created_at)
+        (local_key, file_name, mime_type, kind, object_key, preview_data_uri, thumb_object_key, thumb_width, thumb_height, created_at)
       VALUES
-        (:local_key, :file_name, :mime_type, :kind, :object_key, :preview_data_uri, :thumb_object_key, :created_at)
+        (:local_key, :file_name, :mime_type, :kind, :object_key, :preview_data_uri, :thumb_object_key, :thumb_width, :thumb_height, :created_at)
     ');
     $stmt->execute([
       ':local_key' => $localKey,
@@ -448,6 +465,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ':object_key' => $objectKey,
       ':preview_data_uri' => $previewDataUri,
       ':thumb_object_key' => $thumbObjectKey,
+      ':thumb_width' => $thumbWidth,
+      ':thumb_height' => $thumbHeight,
       ':created_at' => gmdate('c'),
     ]);
 
