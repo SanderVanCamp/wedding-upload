@@ -16,6 +16,12 @@
 		Cache-Control "public, max-age=60"
 	}
 
+	@previewAssets path /share/share.jpg /thumb.php
+	header @previewAssets X-Robots-Tag "noindex, nofollow, noarchive, notranslate"
+
+	@nonPreviewAssets not path /share/share.jpg /thumb.php
+	header @nonPreviewAssets X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, notranslate"
+
 	log {
 		output stdout
 		format console

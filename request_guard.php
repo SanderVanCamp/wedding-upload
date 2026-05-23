@@ -4,6 +4,7 @@ function respondWithStatus(int $statusCode, string $message): void
 {
   http_response_code($statusCode);
   header('Content-Type: application/json; charset=UTF-8');
+  header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, notranslate');
   echo json_encode(['error' => $message], JSON_UNESCAPED_SLASHES);
   exit;
 }
@@ -77,6 +78,7 @@ function requireJsonResponse(): void
 {
   header('Content-Type: application/json; charset=UTF-8');
   header('X-Content-Type-Options: nosniff');
+  header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, notranslate');
   header('Referrer-Policy: same-origin');
 }
 
@@ -89,6 +91,7 @@ function applySecurityHeaders(): void
   $headersApplied = true;
 
   header('X-Content-Type-Options: nosniff');
+  header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, notranslate');
   header('Referrer-Policy: same-origin');
   header('X-Frame-Options: DENY');
   header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https:; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");

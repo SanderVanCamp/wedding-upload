@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @source "../index.html";
+@source "../index.php";
 @source "../gallery.php";
 
 @theme {

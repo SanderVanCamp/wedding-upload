@@ -47,7 +47,7 @@ if ($sharedPhotoId !== '') {
   />
   <link rel="shortcut icon" href="./favicon.ico"/>
 
-  <meta name="robots" content="noindex, nofollow">
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, notranslate">
   <meta name="color-scheme" content="light">
 
   <meta property="og:type" content="website">
@@ -63,6 +63,12 @@ if ($sharedPhotoId !== '') {
         content="<?php echo (int) $ogImageHeight; ?>">
 
   <link href="/dist/output.css?v=7" rel="stylesheet">
+  <style>
+    html,
+    body {
+      overflow-x: hidden;
+    }
+  </style>
 </head>
 <body class="bg-[#ecd0b5] relative min-h-screen sm:px-6 lg:px-8">
 <main>
