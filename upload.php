@@ -513,7 +513,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       [$sourceImage, $sourceType] = decodeImageSource($filePath);
       $previewJpeg = $sourceImage ? generateResizedJpegFromImage($sourceImage, $sourceType, 24, 35) : null;
       $previewDataUri = $previewJpeg !== null ? ('data:image/jpeg;base64,' . base64_encode($previewJpeg)) : null;
-      $displayBody = $sourceImage ? generateResizedJpegFromImage($sourceImage, $sourceType, 1200, 90) : null;
+      $displayBody = $sourceImage ? generateResizedJpegFromImage($sourceImage, $sourceType, 1600, 90) : null;
       if ($displayBody !== null) {
         $displayObjectKey = 'uploads/display/' . $localKey . '.jpg';
         $s3->putObject([
