@@ -177,6 +177,10 @@ if ($sharedPhotoId !== '') {
     let viewerGesture = null;
     let viewerLastTapAt = 0;
     let viewerLastTapTarget = '';
+    let galleryTouchStartX = 0;
+    let galleryTouchStartY = 0;
+    let galleryTouchMoved = false;
+    let galleryTouchStartScrollY = 0;
 
     // NEW: Variable to store scroll position
     let scrollPosition = 0;
@@ -678,8 +682,11 @@ if ($sharedPhotoId !== '') {
       setUploadState(0, files.length);
       let successCount = 0;
       try {
-        for (let index = 0; index < files.length; index += 1) {
-          const file = files[index];
+        const concurrency = Math.min(3, files.length);
+        let nextIndex = 0;
+        let completedCount = 0;
+
+        const uploadOne = async (file, index) => {
           setUploadState(index, files.length);
           const formData = new FormData();
           formData.append('file', file, file.name);
@@ -688,8 +695,22 @@ if ($sharedPhotoId !== '') {
             throw new Error(`Upload failed for ${file.name}`);
           }
           successCount += 1;
-          setUploadState(index + 1, files.length);
-        }
+          completedCount += 1;
+          setUploadState(completedCount, files.length);
+        };
+
+        const workers = Array.from({ length: concurrency }, async () => {
+          while (true) {
+            const index = nextIndex;
+            if (index >= files.length) {
+              break;
+            }
+            nextIndex += 1;
+            await uploadOne(files[index], index);
+          }
+        });
+
+        await Promise.all(workers);
         fileInput.value = '';
         showUploadSuccess(successCount);
         await loadGalleryPage(true);
@@ -706,7 +727,37 @@ if ($sharedPhotoId !== '') {
     };
 
     fileInput.addEventListener('change', uploadFiles);
+    galleryGrid.addEventListener('touchstart', (event) => {
+      if (event.touches.length !== 1) {
+        return;
+      }
+      const touch = event.touches[0];
+      galleryTouchStartX = touch.clientX;
+      galleryTouchStartY = touch.clientY;
+      galleryTouchMoved = false;
+      galleryTouchStartScrollY = window.scrollY;
+    }, { passive: true });
+
+    galleryGrid.addEventListener('touchmove', (event) => {
+      if (event.touches.length !== 1) {
+        galleryTouchMoved = true;
+        return;
+      }
+      const touch = event.touches[0];
+      if (Math.abs(touch.clientX - galleryTouchStartX) > 10 || Math.abs(touch.clientY - galleryTouchStartY) > 10) {
+        galleryTouchMoved = true;
+        return;
+      }
+      if (window.scrollY !== galleryTouchStartScrollY) {
+        galleryTouchMoved = true;
+      }
+    }, { passive: true });
+
     galleryGrid.addEventListener('click', (event) => {
+      if (galleryTouchMoved) {
+        galleryTouchMoved = false;
+        return;
+      }
       const button = event.target.closest('button[data-index]');
       if (!button) {
         return;

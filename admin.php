@@ -5,12 +5,12 @@ guardRequest(['GET', 'HEAD', 'POST'], true);
 applySecurityHeaders();
 require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/db_helpers.php';
 loadEnvFile('/var/www/wedding-upload/.env');
 
 use Aws\S3\S3Client;
 
 const RESET_CONFIRMATION = 'RESET EVERYTHING';
-
 function getAdminS3Client(): S3Client
 {
   $region = getenv('HETZNER_S3_REGION') ?: 'us-east-1';
@@ -114,6 +114,7 @@ function h(string $value): string
 
 $status = null;
 $error = null;
+$migrationStatus = null;
 $adminPassword = (string) (getenv('ADMIN_RESET_PASSWORD') ?: '');
 $bucketName = (string) (getenv('HETZNER_S3_BUCKET') ?: '');
 $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -140,6 +141,19 @@ if ($requestMethod === 'POST') {
       'deletedObjects' => $deletedObjects,
       'databaseRemoved' => $databaseRemoved,
     ];
+  } catch (Throwable $exception) {
+    $error = $exception->getMessage();
+  }
+} elseif ($requestMethod === 'POST' && (string) ($_POST['action'] ?? '') === 'migrate') {
+  try {
+    if ($adminPassword === '') {
+      throw new RuntimeException('ADMIN_RESET_PASSWORD is not configured.');
+    }
+    if (!$tokenIsValid) {
+      throw new RuntimeException('Invalid admin token.');
+    }
+
+    $migrationStatus = migrateUploadsSchema(__DIR__ . '/media.sqlite');
   } catch (Throwable $exception) {
     $error = $exception->getMessage();
   }
@@ -196,6 +210,21 @@ if ($requestMethod === 'POST') {
       </div>
     <?php endif; ?>
 
+    <?php if ($migrationStatus !== null): ?>
+      <div class="mt-6 rounded-2xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-950 shadow-sm">
+        <strong class="font-semibold">Migration complete.</strong>
+        <?php if ($migrationStatus['created']): ?>
+          Created the uploads table.
+        <?php elseif ($migrationStatus['renamedLegacy']): ?>
+          Rebuilt the uploads table from the legacy layout.
+        <?php elseif ($migrationStatus['addedColumns']): ?>
+          Added <?php echo count($migrationStatus['addedColumns']); ?> missing column<?php echo count($migrationStatus['addedColumns']) === 1 ? '' : 's'; ?>.
+        <?php else: ?>
+          No schema changes were needed.
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
+
     <?php if (!$tokenIsValid): ?>
       <section class="mt-6 max-w-xl rounded-3xl border border-[#ded6cd] bg-white p-6 shadow-[0_18px_48px_rgba(31,26,23,0.06)]">
         <h2 class="text-lg font-semibold">Token required</h2>
@@ -217,6 +246,32 @@ if ($requestMethod === 'POST') {
       </section>
     <?php else: ?>
     <section class="mt-6 grid gap-5 lg:grid-cols-[1fr_1fr]">
+      <form method="post" class="rounded-3xl border border-[#ded6cd] bg-white p-6 shadow-[0_18px_48px_rgba(31,26,23,0.06)]">
+        <input type="hidden" name="token" value="<?php echo h($submittedToken); ?>">
+        <input type="hidden" name="action" value="migrate">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-semibold">Migrate database</h2>
+            <p class="mt-1 text-sm leading-6 text-[#6b625b]">Creates or updates the uploads table before uploads hit the live path.</p>
+          </div>
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#eef3ef] text-[#3e684d]">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="h-5 w-5 fill-none stroke-current stroke-2">
+              <path d="M12 5v14"></path>
+              <path d="m19 12-7 7-7-7"></path>
+              <path d="M5 5h14"></path>
+            </svg>
+          </div>
+        </div>
+
+        <div class="mt-5 grid gap-4">
+          <button type="submit"
+                  class="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#315f44] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#244b35] disabled:cursor-not-allowed disabled:bg-[#b9c9bf]"
+                  <?php echo $adminPassword === '' ? 'disabled' : ''; ?>>
+            Run migration
+          </button>
+        </div>
+      </form>
+
       <form method="get" action="/download-originals.php" class="rounded-3xl border border-[#ded6cd] bg-white p-6 shadow-[0_18px_48px_rgba(31,26,23,0.06)]">
         <input type="hidden" name="token" value="<?php echo h($submittedToken); ?>">
         <div class="flex items-start justify-between gap-4">

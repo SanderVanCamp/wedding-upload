@@ -4,6 +4,7 @@ guardRequest(['POST'], true);
 applySecurityHeaders();
 require_once 'vendor/autoload.php';
 require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/db_helpers.php';
 loadEnvFile('/var/www/wedding-upload/.env');
 use Aws\S3\S3Client;
 
@@ -347,58 +348,29 @@ function getDb(): PDO
 {
   $dbPath = __DIR__ . '/media.sqlite';
   $pdo = new PDO('sqlite:' . $dbPath);
+
   $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
-  $tableExists = (bool) $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='uploads'")->fetchColumn();
-  if ($tableExists) {
-    $columns = [];
-    foreach ($pdo->query('PRAGMA table_info(uploads)') as $column) {
-      $columns[$column['name']] = $column;
-    }
+  $pdo->exec('PRAGMA journal_mode = WAL;');
+  $pdo->exec('PRAGMA synchronous = NORMAL;');
+  $pdo->exec('PRAGMA busy_timeout = 5000;');
 
-    $legacyLayout = isset($columns['drive_file_id']) || !isset($columns['object_key']);
-    if ($legacyLayout) {
-      $pdo->exec('ALTER TABLE uploads RENAME TO uploads_legacy');
-      $pdo->exec('
-        CREATE TABLE uploads (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          local_key TEXT NOT NULL UNIQUE,
-          file_name TEXT NOT NULL,
-          mime_type TEXT NOT NULL,
-          kind TEXT NOT NULL,
-          object_key TEXT NOT NULL,
-          preview_data_uri TEXT,
-          thumb_object_key TEXT,
-          thumb_width INTEGER,
-          thumb_height INTEGER,
-          created_at TEXT NOT NULL
-        )
-      ');
-    } else {
-      foreach (['preview_data_uri', 'thumb_width', 'thumb_height'] as $columnName) {
-        if (!isset($columns[$columnName])) {
-          $columnType = in_array($columnName, ['thumb_width', 'thumb_height'], true) ? 'INTEGER' : 'TEXT';
-          $pdo->exec('ALTER TABLE uploads ADD COLUMN ' . $columnName . ' ' . $columnType);
-        }
-      }
-    }
-  } else {
-    $pdo->exec('
-      CREATE TABLE uploads (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        local_key TEXT NOT NULL UNIQUE,
-        file_name TEXT NOT NULL,
-        mime_type TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        object_key TEXT NOT NULL,
-        preview_data_uri TEXT,
-        thumb_object_key TEXT,
-        thumb_width INTEGER,
-        thumb_height INTEGER,
-        created_at TEXT NOT NULL
-      )
-    ');
-  }
+  $pdo->exec('
+    CREATE TABLE IF NOT EXISTS uploads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      local_key TEXT NOT NULL UNIQUE,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      object_key TEXT NOT NULL,
+      preview_data_uri TEXT,
+      thumb_object_key TEXT,
+      thumb_width INTEGER,
+      thumb_height INTEGER,
+      created_at TEXT NOT NULL
+    )
+  ');
 
   return $pdo;
 }
@@ -590,9 +562,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ':created_at' => gmdate('c'),
     ]);
 
-    if ($isChunked && file_exists($filePath)) {
-      unlink($filePath);
-    }
     header('Content-Type: application/json');
     echo json_encode([
       'success' => true,
